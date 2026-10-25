@@ -158,14 +158,16 @@ jobs:
           # Airplane mode does not disable the emulator's virtual Ethernet.
           adb root
           timeout 30 adb wait-for-device
-          adb shell iptables -I OUTPUT 1 ! -o lo -j REJECT
-          adb shell ip6tables -I OUTPUT 1 ! -o lo -j REJECT
-          adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
+          # Preserve the emulator's ADB transport before rejecting Internet traffic.
+          timeout 15 adb shell 'iptables -I OUTPUT 1 -p tcp --sport 5555 -j ACCEPT; iptables -I OUTPUT 2 ! -o lo -j REJECT'
+          timeout 15 adb shell 'ip6tables -I OUTPUT 1 -p tcp --sport 5555 -j ACCEPT; ip6tables -I OUTPUT 2 ! -o lo -j REJECT'
+          timeout 15 adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
-          adb shell iptables -C OUTPUT ! -o lo -j REJECT || adb shell iptables -I OUTPUT 1 ! -o lo -j REJECT
-          adb shell ip6tables -C OUTPUT ! -o lo -j REJECT || adb shell ip6tables -I OUTPUT 1 ! -o lo -j REJECT
-          adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
+          timeout 15 adb shell iptables -C OUTPUT -p tcp --sport 5555 -j ACCEPT
+          timeout 15 adb shell iptables -C OUTPUT ! -o lo -j REJECT
+          timeout 15 adb shell ip6tables -C OUTPUT ! -o lo -j REJECT
+          timeout 15 adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           adb shell cmd connectivity airplane-mode enable
           adb install -r -g TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
           test_apk=$(find TMessagesProj_App/build/outputs/apk/androidTest -name '*.apk' -print -quit)
