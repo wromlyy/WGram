@@ -11,7 +11,13 @@ on:
         required: true
         type: choice
         default: '35'
-        options: ['23', '29', '35']
+        options: ['23', '29', '34', '35']
+      performance_class:
+        description: 'Rendering path on the empty emulator'
+        required: true
+        type: choice
+        default: auto
+        options: [auto, high, light]
 permissions:
   contents: read
   actions: read
@@ -40,6 +46,7 @@ jobs:
         timeout-minutes: 14
         env:
           WGRAM_TEST_API: ${{ inputs.api_level }}
+          WGRAM_TEST_PERFORMANCE: ${{ inputs.performance_class }}
         run: |
           rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
           sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"
@@ -71,6 +78,12 @@ jobs:
             timeout 180 adb shell cmd package compile -m speed -f org.wgram.messenger.beta
             timeout 60 adb shell cmd package compile -m speed -f org.wgram.messenger.beta.test
           fi
+          case "$WGRAM_TEST_PERFORMANCE" in
+            high) printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="2" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"' ;;
+            light) printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="0" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"' ;;
+          esac
+          printf '%s\n' "$WGRAM_TEST_PERFORMANCE" > wgram-ui-results/performance.txt
+          adb shell getprop ro.build.version.sdk > wgram-ui-results/android-api.txt
           adb logcat -c
           sha256sum app/app.apk > wgram-ui-results/apk.sha256
           timeout 240 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
