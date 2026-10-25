@@ -1,0 +1,60 @@
+name: Publish verified WGram 0.2 APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: WGram-debug
+          path: verified-apk
+          run-id: 40212509751
+          github-token: ${{ github.token }}
+      - name: Verify the existing APK before publication
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, zipfile
+          source = pathlib.Path('verified-apk/app.apk')
+          expected = 'f7a7e3880a3caa103302374d07de14189b4fe93983aaef6ffdced25db763770b'
+          actual = hashlib.file_digest(source.open('rb'), 'sha256').hexdigest()
+          if actual != expected:
+              raise SystemExit('APK SHA-256 does not match the verified WGram 0.2 build')
+          with zipfile.ZipFile(source) as apk:
+              if apk.testzip() is not None:
+                  raise SystemExit('APK has a damaged entry')
+              if 'AndroidManifest.xml' not in apk.namelist():
+                  raise SystemExit('APK manifest is missing')
+          source.rename('WGram.apk')
+          pathlib.Path('WGram.apk.sha256').write_text(expected + '  WGram.apk\n')
+          print('Verified WGram.apk:', actual)
+          PY
+      - name: Attach standalone APK and publish the private repository release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload v0.2 WGram.apk WGram.apk.sha256 --clobber
+          gh release edit v0.2 --draft=false --prerelease
+      - name: Verify uploaded asset digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view v0.2 --json assets,isDraft > published-release.json
+          python3 - <<'PY'
+          import json
+          release = json.load(open('published-release.json'))
+          expected = 'sha256:f7a7e3880a3caa103302374d07de14189b4fe93983aaef6ffdced25db763770b'
+          assets = [a for a in release['assets'] if a['name'] == 'WGram.apk']
+          if release['isDraft'] or len(assets) != 1:
+              raise SystemExit('APK release is incomplete')
+          asset = assets[0]
+          if asset.get('state') != 'uploaded' or asset.get('size') != 114459273 or asset.get('digest') != expected:
+              raise SystemExit('Uploaded APK integrity check failed')
+          print('Standalone APK uploaded and checksum verified:', asset['url'])
+          PY

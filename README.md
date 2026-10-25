@@ -1,9 +1,10 @@
 # WGram · Android
 
 Мод на официальных исходниках Telegram Android 13.1.1.
-Версия **0.2, тестовая**. [Скачать APK в ZIP](https://github.com/wromlyy/WGram/actions/runs/40212509751/artifacts/12606760732).
+Версия **0.2, тестовая**. [Скачать WGram.apk без ZIP](https://github.com/wromlyy/WGram/releases/download/v0.2/WGram.apk) · [Страница скачивания](https://github.com/wromlyy/WGram/releases/tag/v0.2).
 Репозиторий приватный: нужен вход в GitHub с доступом к нему.
-Распакуйте архив и установите `app.apk`. Android 6.0+, четыре ABI, 109.2 МБ.
+Скачайте и откройте `WGram.apk`: распаковывать архив не требуется. Android 6.0+, четыре ABI, 109.2 МБ.
+Если прямая ссылка не открывается, войдите в GitHub и выберите `WGram.apk` в разделе **Assets** на странице скачивания.
 Локальный готовый файл: `~/WGram.apk`.
 
 Добавлены:

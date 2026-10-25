@@ -1,7 +1,8 @@
 # Проверенная тестовая сборка WGram 0.2
 
-Дата: 25 октября 2026 года. [APK в ZIP](https://github.com/wromlyy/WGram/actions/runs/40212509751/artifacts/12606760732).
-Нужен доступ к приватному репозиторию GitHub. Распакуйте ZIP и установите `app.apk`.
+Дата: 25 октября 2026 года. [APK без ZIP](https://github.com/wromlyy/WGram/releases/download/v0.2/WGram.apk) · [Страница скачивания](https://github.com/wromlyy/WGram/releases/tag/v0.2).
+Нужен доступ к приватному репозиторию GitHub. Скачайте и откройте `WGram.apk`.
+Отдельный APK побайтно совпадает с APK успешной сборки; перед публикацией повторно проверены SHA-256 и CRC всех записей.
 Локальный файл `~/WGram.apk` содержит тот же APK.
 
 - Исходный коммит приложения: `304400e8d000dfdd1f905263574802ccff2f9500`.

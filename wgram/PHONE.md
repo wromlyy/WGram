@@ -6,9 +6,16 @@
 
 ## Установка
 
-Ссылка на актуальный APK находится в [README](../README.md).
-Артефакт GitHub Actions — ZIP: распакуйте его и откройте `app.apk`.
-Можно также открыть файл `~/WGram.apk` в Termux после загрузки сборки.
+Скачайте [WGram.apk без ZIP](https://github.com/wromlyy/WGram/releases/download/v0.2/WGram.apk) и откройте его.
+Если прямая ссылка не открывается, войдите в GitHub и выберите **Assets → WGram.apk**
+на [странице скачивания](https://github.com/wromlyy/WGram/releases/tag/v0.2).
+Не выбирайте **Source code (zip)**: это исходники, а не приложение.
+
+Готовый APK также лежит в `~/WGram.apk`. В Termux установщик можно открыть командой:
+
+```sh
+termux-open --view --content-type application/vnd.android.package-archive ~/WGram.apk
+```
 Android может попросить разрешить установку из выбранного приложения.
 
 Пакет `org.wgram.messenger.beta` устанавливается рядом с Telegram.
