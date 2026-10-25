@@ -7,8 +7,8 @@ on:
         required: true
         type: string
       apk_sha256:
-        description: 'Locally verified APK SHA-256'
-        required: true
+        description: 'Optional expected APK SHA-256; signature and package are always verified'
+        required: false
         type: string
       tag:
         description: 'Release tag'
@@ -34,7 +34,7 @@ jobs:
           python3 - <<'PY'
           import os, re
           assert re.fullmatch(r'[0-9]+', os.environ['WGRAM_BUILD_RUN'])
-          assert re.fullmatch(r'[a-f0-9]{64}', os.environ['WGRAM_APK_SHA'])
+          assert not os.environ['WGRAM_APK_SHA'] or re.fullmatch(r'[a-f0-9]{64}', os.environ['WGRAM_APK_SHA'])
           assert re.fullmatch(r'v[0-9]+\.[0-9]+(?:\.[0-9]+)?', os.environ['WGRAM_RELEASE_TAG'])
           PY
           gh api "repos/$GH_REPO/actions/runs/$WGRAM_BUILD_RUN" > build-run.json
@@ -62,13 +62,30 @@ jobs:
       - name: Verify APK and create BotHost package
         run: |
           python3 - <<'PY'
-          import hashlib, os, pathlib, zipfile
+          import glob, hashlib, json, os, pathlib, re, subprocess, zipfile
           source = pathlib.Path('verified-apk/app.apk')
           actual = hashlib.file_digest(source.open('rb'), 'sha256').hexdigest()
-          assert actual == os.environ['WGRAM_APK_SHA'], 'Unexpected APK checksum'
+          if os.environ['WGRAM_APK_SHA']:
+              assert actual == os.environ['WGRAM_APK_SHA'], 'Unexpected APK checksum'
           with zipfile.ZipFile(source) as apk:
               assert apk.testzip() is None, 'Damaged APK entry'
               assert 'AndroidManifest.xml' in apk.namelist()
+              abis = sorted({name.split('/')[1] for name in apk.namelist() if name.startswith('lib/') and name.endswith('.so')})
+              assert abis == ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
+          tools = pathlib.Path(os.environ['ANDROID_HOME']) / 'build-tools'
+          signers = sorted(tools.glob('*/apksigner'))
+          assert signers, 'Android signing verifier missing'
+          signer = signers[-1]
+          signature = subprocess.check_output([str(signer), 'verify', '--verbose', '--print-certs', str(source)], text=True)
+          cert = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)', signature)
+          assert cert and cert.group(1) == '6805db11fd8984f63fe91f4b4e9eea7f751b2a17a056bb08a25c7ad37325ab86', 'Unexpected WGram signing certificate'
+          badging = subprocess.check_output([str(signer.parent / 'aapt'), 'dump', 'badging', str(source)], text=True)
+          assert "package: name='org.wgram.messenger.beta'" in badging
+          assert "versionCode='72399'" in badging
+          assert "sdkVersion:'23'" in badging
+          print(signature)
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('WGRAM_VERIFIED_APK_SHA=' + actual + '\n')
           source.rename('WGram.apk')
           pathlib.Path('WGram.apk.sha256').write_text(actual + '  WGram.apk\n')
           print('Verified WGram.apk:', actual)
@@ -102,7 +119,7 @@ jobs:
           import json, os, pathlib
           release = json.load(open('published-release.json'))
           assert not release['isDraft']
-          for name, checksum in [('WGram.apk', os.environ['WGRAM_APK_SHA']), ('WGramBot.zip', pathlib.Path('WGramBot.zip.sha256').read_text().split()[0])]:
+          for name, checksum in [('WGram.apk', os.environ['WGRAM_VERIFIED_APK_SHA']), ('WGramBot.zip', pathlib.Path('WGramBot.zip.sha256').read_text().split()[0])]:
               assets = [a for a in release['assets'] if a['name'] == name]
               assert len(assets) == 1 and assets[0]['state'] == 'uploaded'
               assert assets[0]['size'] == pathlib.Path(name).stat().st_size
