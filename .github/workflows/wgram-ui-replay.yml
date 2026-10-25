@@ -92,6 +92,9 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+          # The offline Google launcher waits for its disabled search provider and can
+          # cover every screenshot with its own ANR dialog. The test launches WGram directly.
+          adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
           if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 24 ]; then
             timeout 180 adb shell cmd package compile -m speed -f org.wgram.messenger.beta
             timeout 60 adb shell cmd package compile -m speed -f org.wgram.messenger.beta.test
