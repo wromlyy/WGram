@@ -3,8 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       source_run:
-        description: 'Successful APK build with offline UI checks'
+        description: 'APK build run; requires passed UI checks or a verified UI replay'
         required: true
+        type: string
+      ui_run:
+        description: 'Optional successful UI replay run testing this exact APK'
+        required: false
         type: string
       apk_sha256:
         description: 'Optional expected APK SHA-256; signature and package are always verified'
@@ -24,6 +28,7 @@ jobs:
     timeout-minutes: 10
     env:
       WGRAM_BUILD_RUN: ${{ inputs.source_run }}
+      WGRAM_UI_RUN: ${{ inputs.ui_run }}
       WGRAM_APK_SHA: ${{ inputs.apk_sha256 }}
       WGRAM_RELEASE_TAG: ${{ inputs.tag }}
       GH_TOKEN: ${{ github.token }}
@@ -34,18 +39,29 @@ jobs:
           python3 - <<'PY'
           import os, re
           assert re.fullmatch(r'[0-9]+', os.environ['WGRAM_BUILD_RUN'])
+          assert not os.environ['WGRAM_UI_RUN'] or re.fullmatch(r'[0-9]+', os.environ['WGRAM_UI_RUN'])
           assert not os.environ['WGRAM_APK_SHA'] or re.fullmatch(r'[a-f0-9]{64}', os.environ['WGRAM_APK_SHA'])
           assert re.fullmatch(r'v[0-9]+\.[0-9]+(?:\.[0-9]+)?', os.environ['WGRAM_RELEASE_TAG'])
           PY
           gh api "repos/$GH_REPO/actions/runs/$WGRAM_BUILD_RUN" > build-run.json
           gh api "repos/$GH_REPO/actions/runs/$WGRAM_BUILD_RUN/jobs" > build-jobs.json
+          wgram_ui_run="${WGRAM_UI_RUN:-$WGRAM_BUILD_RUN}"
+          gh api "repos/$GH_REPO/actions/runs/$wgram_ui_run" > ui-run.json
+          gh api "repos/$GH_REPO/actions/runs/$wgram_ui_run/jobs" > ui-jobs.json
           python3 - <<'PY'
           import json, os
           run = json.load(open('build-run.json'))
           jobs = json.load(open('build-jobs.json'))['jobs']
-          assert run['conclusion'] == 'success', 'Build must succeed before publication'
           assert run['path'] == '.github/workflows/wgram-apk.yml'
-          checks = [s for j in jobs for s in j['steps'] if s['name'] == 'Run offline Android UI checks']
+          for name in ['Build debug APK', 'Verify APK signature', 'Build offline UI test APK']:
+              checks = [s for j in jobs for s in j['steps'] if s['name'] == name]
+              assert len(checks) == 1 and checks[0]['conclusion'] == 'success', name + ' must pass'
+          ui = json.load(open('ui-run.json'))
+          ui_jobs = json.load(open('ui-jobs.json'))['jobs']
+          assert ui['conclusion'] == 'success', 'UI run must succeed before publication'
+          expected_path = '.github/workflows/wgram-ui-replay.yml' if os.environ['WGRAM_UI_RUN'] else '.github/workflows/wgram-apk.yml'
+          assert ui['path'] == expected_path
+          checks = [s for j in ui_jobs for s in j['steps'] if s['name'] == 'Run offline Android UI checks']
           assert len(checks) == 1 and checks[0]['conclusion'] == 'success', 'UI checks must pass'
           with open(os.environ['GITHUB_ENV'], 'a') as env:
               env.write('WGRAM_SOURCE_SHA=' + run['head_sha'] + '\n')
@@ -59,12 +75,24 @@ jobs:
           path: verified-apk
           run-id: ${{ inputs.source_run }}
           github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        if: inputs.ui_run != ''
+        with:
+          pattern: WGram-ui-api-*
+          merge-multiple: true
+          path: verified-ui
+          run-id: ${{ inputs.ui_run }}
+          github-token: ${{ github.token }}
       - name: Verify APK and create BotHost package
         run: |
           python3 - <<'PY'
           import glob, hashlib, json, os, pathlib, re, subprocess, zipfile
           source = pathlib.Path('verified-apk/app.apk')
           actual = hashlib.file_digest(source.open('rb'), 'sha256').hexdigest()
+          if os.environ['WGRAM_UI_RUN']:
+              tested = pathlib.Path('verified-ui/apk.sha256').read_text().split()[0]
+              assert tested == actual, 'UI replay tested another APK'
+              assert 'WGRAM_SMOKE_OK' in pathlib.Path('verified-ui/instrumentation.txt').read_text(), 'UI checks did not finish'
           if os.environ['WGRAM_APK_SHA']:
               assert actual == os.environ['WGRAM_APK_SHA'], 'Unexpected APK checksum'
           with zipfile.ZipFile(source) as apk:
