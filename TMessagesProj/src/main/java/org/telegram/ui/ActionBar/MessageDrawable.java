@@ -34,6 +34,7 @@ public class MessageDrawable extends Drawable {
     private Shader gradientShader;
     private int currentBackgroundHeight;
     public Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint wgramStylePaint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint selectedPaint;
     private int currentColor;
     private int currentGradientColor1;
@@ -446,6 +447,7 @@ public class MessageDrawable extends Drawable {
     }
 
     public Drawable getShadowDrawable() {
+        if(currentType==TYPE_TEXT && org.telegram.messenger.wgram.WGramConfig.getChatStyle()!=0)return null;
         if (isCrossfadeBackground) {
             return null;
         }
@@ -559,6 +561,15 @@ public class MessageDrawable extends Drawable {
 
     public void draw(Canvas canvas, Paint paintToUse) {
         Rect bounds = getBounds();
+        int wgramStyle=org.telegram.messenger.wgram.WGramConfig.getChatStyle();
+        if(wgramStyle!=0 && currentType==TYPE_TEXT && paintToUse==null && overrideRounding<=0){
+            wgramStylePaint.setShader(wgramStyle==2?gradientShader:null);
+            wgramStylePaint.setColor(getColor(isOut?(isSelected?Theme.key_chat_outBubbleSelected:Theme.key_chat_outBubble):(isSelected?Theme.key_chat_inBubbleSelected:Theme.key_chat_inBubble)));
+            wgramStylePaint.setAlpha(alpha);
+            rect.set(bounds.left+dp(isOut?2:8),bounds.top+dp(2),bounds.right-dp(isOut?8:2),bounds.bottom-dp(2));
+            float radius=dp(wgramStyle==1?3:wgramStyle==2?22:8);
+            canvas.drawRoundRect(rect,radius,radius,wgramStylePaint);return;
+        }
         if (paintToUse == null && paint.getStyle() == Paint.Style.FILL && gradientShader == null && overrideRoundRadius == 0 && overrideRounding <= 0) {
             Drawable background = getBackgroundDrawable();
             if (background != null) {

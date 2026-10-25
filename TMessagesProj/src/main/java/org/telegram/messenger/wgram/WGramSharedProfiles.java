@@ -1,167 +1,139 @@
 package org.telegram.messenger.wgram;
 
+import android.util.Base64;
 import android.util.LruCache;
 import org.json.JSONObject;
-import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
-import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.messenger.Utilities;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.tgnet.TLRPC;
-import java.util.ArrayList;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.ArrayList;
 
-/** Public, opt-in Telegram catalog. Each record is bound to its actual MTProto sender. */
+/** Opt-in profile service. No catalog groups are created, searched, joined, or messaged. */
 public final class WGramSharedProfiles {
-    public static final String CATALOG = "wgram_profiles_8226881959";
-    public interface Result { void done(long channel, String error); }
     public static final class Profile {
         public boolean premium;
-        public long emoji, badgeEmoji;
+        public long emoji,badgeEmoji;
         public int color=-1;
-        public String badgeTitle="", badgeDescription="";
-        public TLRPC.Photo banner;
+        public String badgeTitle="",badgeDescription="";
+        public File banner;
         long fetched;
     }
+    private static boolean cleaned;
     private static final WGramSharedProfiles[] instances=new WGramSharedProfiles[UserConfig.MAX_ACCOUNT_COUNT];
     public static WGramSharedProfiles get(int account){
         if(instances[account]==null)instances[account]=new WGramSharedProfiles(account);
         return instances[account];
     }
     private final int account;
-    private final LruCache<Long,Profile> cache=new LruCache<>(128);
+    private long session;
+    private int generation;
+    private final LruCache<Long,Profile> cache=new LruCache<Long,Profile>(64){
+        @Override protected void entryRemoved(boolean evicted,Long key,Profile old,Profile next){
+            if(old.banner!=null&&(next==null||!old.banner.equals(next.banner)))old.banner.delete();
+        }
+    };
     private final HashSet<Long> loading=new HashSet<>();
-    private final ArrayList<Result> resolving=new ArrayList<>();
-    private long channel;
-    private long resolveFailedAt;
-    private boolean resolveRunning;
-    private WGramSharedProfiles(int account){this.account=account;}
-    private MessagesController controller(){return MessagesController.getInstance(account);}
-    public Profile peek(long user){return cache.get(user);}
+    private final HashMap<Long,ArrayList<Runnable>> callbacks=new HashMap<>();
+    private WGramSharedProfiles(int account){
+        this.account=account;
+        if(!cleaned){cleaned=true;Utilities.globalQueue.postRunnable(()->{
+            File[] files=ApplicationLoader.applicationContext.getCacheDir().listFiles((dir,name)->name.startsWith("wgram-remote-"));
+            if(files!=null)for(File f:files)f.delete();
+        });}
+    }
+    private void accountCheck(){long user=UserConfig.getInstance(account).getClientUserId();if(session!=user){clear();session=user;}}
+    public Profile peek(long user){accountCheck();return cache.get(user);}
     public static boolean hasPremium(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p!=null&&p.premium;}
     public static long status(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?0:p.badgeEmoji>0?p.badgeEmoji:p.emoji;}
     public static int color(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?-1:p.color;}
-    public void clear(){cache.evictAll();loading.clear();channel=0;}
+    public void clear(){generation++;cache.evictAll();loading.clear();callbacks.clear();}
     public void invalidate(long user){cache.remove(user);}
-    public void resolve(Result result){
-        if(channel!=0){result.done(channel,null);return;}
-        if(System.currentTimeMillis()-resolveFailedAt<30000){result.done(0,"WGRAM_CATALOG_NOT_READY");return;}
-        resolving.add(result);if(resolveRunning)return;resolveRunning=true;
-        TLRPC.TL_contacts_resolveUsername req=new TLRPC.TL_contacts_resolveUsername();req.username=CATALOG;
-        ConnectionsManager.getInstance(account).sendRequest(req,(response,error)->AndroidUtilities.runOnUIThread(()->{
-            if(response instanceof TLRPC.TL_contacts_resolvedPeer){
-                TLRPC.TL_contacts_resolvedPeer peer=(TLRPC.TL_contacts_resolvedPeer)response;
-                controller().putUsers(peer.users,false);controller().putChats(peer.chats,false);
-                if(peer.peer!=null)channel=peer.peer.channel_id;
-            }
-            if(channel==0)resolveFailedAt=System.currentTimeMillis();
-            resolveRunning=false;ArrayList<Result> callbacks=new ArrayList<>(resolving);resolving.clear();
-            for(Result callback:callbacks)callback.done(channel,channel==0?"WGRAM_CATALOG_NOT_READY":null);
-        }));
-    }
-    public void create(Result callback){
-        if(!WGramNoticeWire.isAdmin(UserConfig.getInstance(account).getClientUserId())){callback.done(0,"WGRAM_OWNER_ONLY");return;}
-        long pending=WGramConfig.account(account).getLong("catalog_pending",0);
-        if(pending!=0){setUsername(pending,callback);return;}
-        resolveFailedAt=0;
-        resolve((existing,error)->{
-            if(existing!=0){
-                TLRPC.Chat chat=controller().getChat(existing);
-                callback.done(existing,chat!=null&&chat.creator?null:"WGRAM_CATALOG_NAME_TAKEN");return;
-            }
-            TLRPC.TL_channels_createChannel req=new TLRPC.TL_channels_createChannel();req.megagroup=true;
-            req.title="WGram · профили и значки";req.about="Публичный каталог оформления WGram. Публикуйте только свои баннеры. Администратор: 8226881959.";
-            ConnectionsManager.getInstance(account).sendRequest(req,(res,err)->AndroidUtilities.runOnUIThread(()->{
-                if(!(res instanceof TLRPC.Updates)){callback.done(0,err==null?"WGRAM_CREATE_FAILED":err.text);return;}
-                TLRPC.Updates updates=(TLRPC.Updates)res;
-                controller().processUpdates(updates,false);
-                controller().putUsers(updates.users,false);controller().putChats(updates.chats,false);
-                if(updates.chats.isEmpty()){callback.done(0,"WGRAM_CREATE_FAILED");return;}
-                long id=updates.chats.get(0).id;WGramConfig.account(account).edit().putLong("catalog_pending",id).apply();
-                setUsername(id,callback);
-            }));
-        });
-    }
-    private void setUsername(long id,Result callback){
-        TLRPC.TL_channels_updateUsername req=new TLRPC.TL_channels_updateUsername();req.channel=controller().getInputChannel(id);req.username=CATALOG;
-        ConnectionsManager.getInstance(account).sendRequest(req,(res,error)->AndroidUtilities.runOnUIThread(()->{
-            if(error!=null){callback.done(0,error.text);return;}
-            channel=id;resolveFailedAt=0;WGramConfig.account(account).edit().remove("catalog_pending").apply();callback.done(id,null);
-        }));
-    }
-    public void join(Result callback){
-        resolve((id,error)->{
-            if(id==0){callback.done(0,error);return;}
-            TLRPC.TL_channels_joinChannel req=new TLRPC.TL_channels_joinChannel();req.channel=controller().getInputChannel(id);
-            ConnectionsManager.getInstance(account).sendRequest(req,(res,err)->AndroidUtilities.runOnUIThread(()->{
-                if(err!=null && !"USER_ALREADY_PARTICIPANT".equals(err.text)){callback.done(0,err.text);return;}
-                if(res instanceof TLRPC.TL_chatInviteJoinResultOk)controller().processUpdates(((TLRPC.TL_chatInviteJoinResultOk)res).updates,false);
-                callback.done(id,null);
-            }));
-        });
-    }
     public void load(long user,Runnable changed){
-        if(user<=0 || loading.contains(user))return;
-        Profile old=cache.get(user);
-        if(old!=null && System.currentTimeMillis()-old.fetched<5*60*1000)return;
-        loading.add(user);final long session=UserConfig.getInstance(account).getClientUserId();
-        resolve((id,error)->{
-            if(id==0 || session!=UserConfig.getInstance(account).getClientUserId()){loading.remove(user);return;}
-            Profile data=new Profile();data.fetched=System.currentTimeMillis();cache.put(user,data);
-            final int[] pending={2};
-            Runnable complete=()->{if(--pending[0]==0)loading.remove(user);if(session==UserConfig.getInstance(account).getClientUserId()){
-                NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.updateInterfaces,MessagesController.UPDATE_MASK_ALL);changed.run();
-            }};
-            search(id,user,"#wgram_profile_"+user,messages->{
-                int latest=0;
-                for(TLRPC.Message m:messages){
-                    JSONObject json=record(m,user,"#wgram_profile_"+user);
-                    if(json==null || m.id<=latest || json.optLong("uid")!=user)continue;
-                    latest=m.id;data.premium=json.optBoolean("premium");data.emoji=Math.max(0,json.optLong("emoji"));
-                    data.color=Math.max(-1,Math.min(100,json.optInt("color",-1)));
-                    data.banner=m.media==null?null:m.media.photo;
-                }
-                complete.run();
+        accountCheck();
+        if(user<=0||!WGramService.connected(account)){changed.run();return;}
+        Profile old=cache.get(user);if(old!=null&&System.currentTimeMillis()-old.fetched<120000){changed.run();return;}
+        ArrayList<Runnable> waiting=callbacks.get(user);
+        if(waiting==null){waiting=new ArrayList<>();callbacks.put(user,waiting);}waiting.add(changed);
+        if(loading.contains(user))return;
+        loading.add(user);final int version=generation;
+        WGramService.request(account,"/v1/profiles/"+user,null,true,(json,error)->{
+            if(version!=generation)return;
+            if(error!=null){notifyLoaded(user);return;}
+            Profile data=new Profile();data.fetched=System.currentTimeMillis();data.premium=json.optBoolean("premium");
+            data.emoji=Math.max(0,json.optLong("emoji"));data.color=Math.max(-1,Math.min(100,json.optInt("color",-1)));
+            JSONObject badge=json.optJSONObject("badge");
+            if(badge!=null&&badge.optBoolean("active")){
+                data.badgeEmoji=Math.max(0,badge.optLong("emoji"));data.badgeTitle=clip(badge.optString("title"),40);data.badgeDescription=clip(badge.optString("description"),300);
+            }
+            if(json.optBoolean("banner"))WGramService.banner(account,user,(bytes,failure)->{
+                if(version!=generation)return;
+                Utilities.globalQueue.postRunnable(()->{
+                    File file=null;
+                    if(bytes!=null&&bytes.length>=5&&(bytes[0]&255)==255&&(bytes[1]&255)==216){
+                        try{
+                            file=File.createTempFile("wgram-remote-",".jpg",ApplicationLoader.applicationContext.getCacheDir());
+                            try(FileOutputStream out=new FileOutputStream(file)){out.write(bytes);}
+                        }catch(Exception e){if(file!=null)file.delete();file=null;}
+                    }
+                    final File saved=file;
+                    AndroidUtilities.runOnUIThread(()->{
+                        if(version!=generation){if(saved!=null)saved.delete();return;}
+                        data.banner=saved;complete(user,data,changed);
+                    });
+                });
             });
-            search(id,WGramNoticeWire.ADMIN_ID,"#wgram_badge_"+user,messages->{
-                int latest=0;
-                for(TLRPC.Message m:messages){
-                    JSONObject json=record(m,WGramNoticeWire.ADMIN_ID,"#wgram_badge_"+user);
-                    if(json==null || m.id<=latest || json.optLong("uid")!=user)continue;
-                    latest=m.id;boolean active=json.optBoolean("active");
-                    data.badgeEmoji=active?Math.max(0,json.optLong("emoji")):0;
-                    data.badgeTitle=active?clip(json.optString("title"),40):"";
-                    data.badgeDescription=active?clip(json.optString("description"),300):"";
-                }
-                complete.run();
-            });
+            else complete(user,data,changed);
         });
     }
-    private interface Messages {void done(ArrayList<TLRPC.Message> messages);}
-    private void search(long id,long sender,String query,Messages callback){
-        TLRPC.TL_messages_search req=new TLRPC.TL_messages_search();req.peer=controller().getInputPeer(-id);
-        req.from_id=controller().getUser(sender)==null?null:controller().getInputPeer(sender);req.q=query;req.filter=new TLRPC.TL_inputMessagesFilterEmpty();req.limit=100;
-        ConnectionsManager.getInstance(account).sendRequest(req,(res,error)->AndroidUtilities.runOnUIThread(()->{
-            if(res instanceof TLRPC.messages_Messages){
-                TLRPC.messages_Messages data=(TLRPC.messages_Messages)res;controller().putUsers(data.users,false);controller().putChats(data.chats,false);callback.done(data.messages);
-            }else callback.done(new ArrayList<>());
-        }));
+    private void complete(long user,Profile data,Runnable changed){
+        cache.put(user,data);
+        NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.updateInterfaces,MessagesController.UPDATE_MASK_EMOJI_STATUS);
+        notifyLoaded(user);
     }
-    private static JSONObject record(TLRPC.Message m,long sender,String tag){
-        if(m.from_id==null || m.from_id.user_id!=sender || m.fwd_from!=null || m.message==null
-            || m.message.length()>2048 || !m.message.startsWith(tag+"\n") || m.ttl_period!=0)return null;
-        try{JSONObject j=new JSONObject(m.message.substring(tag.length()+1));return j.optInt("v")==1?j:null;}catch(Exception e){return null;}
+    private void notifyLoaded(long user){
+        loading.remove(user);ArrayList<Runnable> waiting=callbacks.remove(user);
+        if(waiting!=null)for(Runnable callback:waiting)callback.run();
     }
     private static String clip(String s,int max){return s.length()>max?s.substring(0,max):s;}
-    public String profileRecord(){
-        long user=UserConfig.getInstance(account).getClientUserId();
-        try{return "#wgram_profile_"+user+"\n"+new JSONObject().put("v",1).put("uid",user)
-            .put("premium",WGramConfig.isVisualPremiumEnabled(account)).put("emoji",WGramConfig.getProfileEmoji(account)).put("color",WGramConfig.getProfileColor(account));
-        }catch(Exception e){throw new IllegalStateException(e);}
+    public void publish(WGramService.Result callback){
+        final long owner=UserConfig.getInstance(account).getClientUserId();
+        final String endpoint=WGramService.address(account);
+        final boolean premium=WGramConfig.isVisualPremiumEnabled(account);
+        final long emoji=WGramConfig.getProfileEmoji(account);final int color=WGramConfig.getProfileColor(account);
+        Utilities.globalQueue.postRunnable(()->{
+            JSONObject data=new JSONObject();String error=null;
+            try{
+                data.put("premium",premium).put("emoji",emoji).put("color",color);
+                File banner=WGramBanners.file(owner);
+                if(banner.exists()){
+                    if(banner.length()>1500000)throw new IllegalArgumentException();
+                    java.io.ByteArrayOutputStream output=new java.io.ByteArrayOutputStream();
+                    try(java.io.FileInputStream input=new java.io.FileInputStream(banner)){
+                        byte[] b=new byte[8192];int count;while((count=input.read(b))!=-1){output.write(b,0,count);if(output.size()>1500000)throw new IllegalArgumentException();}
+                    }
+                    data.put("banner",Base64.encodeToString(output.toByteArray(),Base64.NO_WRAP));
+                }
+                // No local banner: preserve a photo uploaded directly to the bot.
+            }catch(Exception e){error="INVALID_BANNER";}
+            final String failure=error;
+            AndroidUtilities.runOnUIThread(()->{
+                if(owner!=UserConfig.getInstance(account).getClientUserId()||!endpoint.equals(WGramService.address(account)))return;
+                if(failure!=null){callback.done(null,failure);return;}
+                WGramService.request(account,"/v1/me/profile",data,true,(result,err)->{if(err==null)invalidate(owner);callback.done(result,err);});
+            });
+        });
     }
-    public static String badgeRecord(long target,boolean active,long emoji,String title,String description){
-        try{return "#wgram_badge_"+target+"\n"+new JSONObject().put("v",1).put("uid",target).put("active",active)
-            .put("emoji",emoji).put("title",clip(title,40)).put("description",clip(description,300));
-        }catch(Exception e){throw new IllegalStateException(e);}
+    public void badge(long target,boolean active,long emoji,String title,String description,WGramService.Result callback){
+        try{WGramService.request(account,"/v1/admin/badge",new JSONObject().put("uid",target).put("active",active).put("emoji",emoji)
+            .put("title",clip(title,40)).put("description",clip(description,300)),true,(result,error)->{if(error==null)invalidate(target);callback.done(result,error);});}
+        catch(Exception e){callback.done(null,"INVALID_BADGE");}
     }
 }

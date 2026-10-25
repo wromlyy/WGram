@@ -18,3 +18,5 @@ jobs:
         run: sh wgram/test.sh
       - name: Resources
         run: python3 wgram/verify_resources.py
+      - name: Profile bot authentication and storage
+        run: python3 -m unittest discover -s wgram/bot/tests -v

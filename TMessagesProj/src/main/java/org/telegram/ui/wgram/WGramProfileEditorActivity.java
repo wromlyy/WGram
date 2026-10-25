@@ -9,7 +9,8 @@ import android.view.View;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
-import org.telegram.messenger.SendMessagesHelper;
+import org.telegram.messenger.wgram.WGramService;
+import org.json.JSONObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.wgram.WGramBanners;
 import org.telegram.messenger.wgram.WGramConfig;
@@ -40,7 +41,8 @@ public final class WGramProfileEditorActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.WGramBannerInfo)));
         items.add(UItem.asHeader(getString(R.string.WGramSharedProfile)));
         items.add(UItem.asButton(20,getString(R.string.WGramPublishProfile),publishing?getString(R.string.Loading):"").accent());
-        items.add(UItem.asButton(21,getString(R.string.WGramOpenCatalog)));
+        items.add(UItem.asButton(21,getString(R.string.WGramService),getString(WGramService.connected(currentAccount)?R.string.WGramServiceConnected:R.string.WGramServiceDisconnected)));
+        items.add(UItem.asButton(22,getString(R.string.WGramUnpublishProfile)));
         items.add(UItem.asShadow(getString(R.string.WGramProfilePublishInfo)));
     }
     @Override protected void onClick(UItem item,View view,int p,float x,float y){
@@ -57,29 +59,40 @@ public final class WGramProfileEditorActivity extends UniversalFragment {
                 if(importing)return;
                 Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("image/*");
                 try{startActivityForResult(intent,2401);}catch(Exception e){WGramUi.info(this,getString(R.string.WGramBannerFailed));}return;
-            case 11:WGramBanners.file(getUserConfig().getClientUserId()).delete();break;
+            case 11:
+                WGramBanners.file(getUserConfig().getClientUserId()).delete();
+                if(WGramService.connected(currentAccount)){
+                    try{WGramService.request(currentAccount,"/v1/me/profile",new JSONObject().put("premium",WGramConfig.isVisualPremiumEnabled(currentAccount))
+                        .put("emoji",WGramConfig.getProfileEmoji(currentAccount)).put("color",WGramConfig.getProfileColor(currentAccount)).put("banner",""),true,(d,e)->{
+                            if(e!=null)WGramUi.info(this,WGramServiceActivity.error(e));
+                            else WGramSharedProfiles.get(currentAccount).invalidate(getUserConfig().getClientUserId());
+                        });}catch(Exception ignored){}
+                }
+                break;
             case 12:Bundle args=new Bundle();args.putLong("user_id",getUserConfig().getClientUserId());ProfileActivity profile=new ProfileActivity(args);profile.setCurrentAccount(currentAccount);presentFragment(profile);return;
             case 20:
                 if(publishing||importing)return;
                 showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramPublishProfile)).setMessage(getString(R.string.WGramProfilePublishInfo))
                     .setPositiveButton(getString(R.string.WGramPublish),(d,w)->publish()).setNegativeButton(getString(R.string.Cancel),null).create());return;
-            case 21:org.telegram.messenger.browser.Browser.openUrl(getParentActivity(),"https://t.me/"+WGramSharedProfiles.CATALOG);return;
+            case 21:presentFragment(new WGramServiceActivity(currentAccount));return;
+            case 22:showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramUnpublishProfile))
+                .setMessage(getString(R.string.WGramUnpublishInfo)).setPositiveButton(getString(R.string.Delete),(d,w)->{
+                    WGramService.request(currentAccount,"/v1/me/delete",new JSONObject(),true,(result,error)->{
+                        if(error!=null)WGramUi.info(this,WGramServiceActivity.error(error));
+                        else{WGramSharedProfiles.get(currentAccount).invalidate(getUserConfig().getClientUserId());WGramUi.info(this,getString(R.string.WGramUnpublished));}
+                    });
+                }).setNegativeButton(getString(R.string.Cancel),null).create());return;
         }
         refresh();
     }
     private void publish(){
         publishing=true;refresh();final long user=getUserConfig().getClientUserId();
-        WGramSharedProfiles.get(currentAccount).join((id,error)->{
+        WGramSharedProfiles.get(currentAccount).publish((result,error)->{
             publishing=false;refresh();if(user!=getUserConfig().getClientUserId())return;
-            if(id==0){WGramUi.info(this,getString(R.string.WGramCatalogNotReady)+"\n"+error);return;}
-            String caption=WGramSharedProfiles.get(currentAccount).profileRecord();
-            java.io.File file=WGramBanners.file(user);
-            if(file.exists())SendMessagesHelper.prepareSendingPhoto(getAccountInstance(),file.getPath(),null,-id,null,null,null,caption,null,null,null,0,null,true,0,0,null);
-            else getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of(caption,-id));
-            WGramSharedProfiles.get(currentAccount).invalidate(user);
-            WGramUi.info(this,getString(R.string.WGramProfileQueued));
+            WGramUi.info(this,error==null?getString(R.string.WGramProfileQueued):WGramServiceActivity.error(error));
         });
     }
+
     @Override public void onActivityResultFragment(int requestCode,int resultCode,Intent data){
         if(requestCode!=2401 || resultCode!=Activity.RESULT_OK || data==null || data.getData()==null)return;
         final Uri uri=data.getData();final long user=getUserConfig().getClientUserId();importing=true;refresh();

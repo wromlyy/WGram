@@ -1225,12 +1225,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         private final ImageReceiver wgramBanner=new ImageReceiver(this);
         private String wgramBannerKey="";
         private boolean wgramHasBanner;
-        void setWGramBanner(java.io.File local,TLRPC.Photo remote){
-            String key=local!=null?local.getPath()+local.lastModified():remote!=null?"photo:"+remote.id:"";
+        void setWGramBanner(java.io.File local){
+            String key=local!=null?local.getPath()+local.lastModified():"";
             if(key.equals(wgramBannerKey))return;
             wgramBannerKey=key;wgramHasBanner=!key.isEmpty();
             if(local!=null)wgramBanner.setImage(local.getPath(),"1280_720_"+local.lastModified(),null,null,0);
-            else if(remote!=null)wgramBanner.setImage(ImageLocation.getForPhoto(FileLoader.getClosestPhotoSizeWithSize(remote.sizes,1280),remote),"1280_720",null,null,remote,0);
             else wgramBanner.setImageBitmap((android.graphics.Bitmap)null);
             invalidate();
         }
@@ -11424,7 +11423,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (topView != null) {
                 org.telegram.messenger.wgram.WGramSharedProfiles.Profile appearance=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
                 java.io.File localBanner=userId==getUserConfig().getClientUserId()?org.telegram.messenger.wgram.WGramBanners.file(userId):null;
-                topView.setWGramBanner(localBanner!=null&&localBanner.exists()?localBanner:null,appearance==null?null:appearance.banner);
+                topView.setWGramBanner(localBanner!=null&&localBanner.exists()?localBanner:appearance==null?null:appearance.banner);
                 topView.setBackgroundEmojiId(UserObject.getProfileEmojiId(user), user != null && user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible, true);
             }
             if (ratingView != null) {

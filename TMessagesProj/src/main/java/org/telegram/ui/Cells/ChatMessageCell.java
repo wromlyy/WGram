@@ -18520,6 +18520,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (org.telegram.messenger.wgram.WGramConfig.showSeconds(currentAccount) && messageObject.messageOwner.date > 0 && messageObject.messageOwner.date < 0x7FFFFFFE) {
             timeString += ":" + String.format(java.util.Locale.ROOT, "%02d", messageObject.messageOwner.date % 60);
         }
+        if(messageObject.wgramDeleted)timeString="× " + timeString;
         if (currentMessageObject.messageOwner.video_processing_pending) {
             timeString = formatString(R.string.ScheduledTimeApprox, timeString);
         }
@@ -27294,6 +27295,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         sb.append("\n");
                         sb.append(formatString("AccDescrReceivedDate", R.string.AccDescrReceivedDate, getString("TodayAt", R.string.TodayAt) + " " + currentTimeString));
                     }
+                    if(currentMessageObject.wgramDeleted)sb.append("\n").append(getString(R.string.WGramDeletedInline));
                     if (getRepliesCount() > 0 && !hasCommentLayout()) {
                         sb.append("\n");
                         sb.append(formatPluralString("AccDescrNumberOfReplies", getRepliesCount()));

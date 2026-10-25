@@ -12174,7 +12174,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
         Timer.done(t1);
         Timer.Task t2 = Timer.start(loaderLogger, "processLoadedMessages: runOnUIThread");
-        AndroidUtilities.runOnUIThread(() -> {
+        Runnable wgramDeliver = () -> AndroidUtilities.runOnUIThread(() -> {
             Timer.done(t2);
             Timer.Task t3 = Timer.start(loaderLogger, "processLoadedMessages: post runOnUIThread");
             putUsers(messagesRes.users, isCache);
@@ -12229,6 +12229,15 @@ public class MessagesController extends BaseController implements NotificationCe
             Timer.done(t3);
             Timer.finish(loaderLogger);
         });
+        if(mode==ChatActivity.MODE_DEFAULT && threadMessageId==0 && org.telegram.messenger.wgram.WGramConfig.isHistoryEnabled(currentAccount)){
+            final long wgramSession=getUserConfig().getClientUserId();
+            getMessagesStorage().getStorageQueue().postRunnable(()->{
+                if(wgramSession!=0 && wgramSession==getUserConfig().getClientUserId()){
+                    org.telegram.messenger.wgram.WGramHistory.mergeInto(currentAccount,dialogId,objects,max_id,load_type,isEnd);
+                    wgramDeliver.run();
+                }
+            });
+        }else wgramDeliver.run();
     }
 
     public void forceNoReload(long dialogId, int mode) {

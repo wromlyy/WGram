@@ -300,7 +300,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         leftButtonIsBack = true; // the view may be rebuilt (theme, language): checkUi_menuItems swaps it to QR again
         actionBar.setAllowOverlayTitle(true);
         actionBar.setUseContainerForTitles();
-        actionBar.setTitle(getString(R.string.Settings));
+        actionBar.setTitle(getString(R.string.WGramMainSettings));
         actionBar.setAdditionalTextLeft(-dp(4));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
@@ -559,7 +559,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         subtitleView.setText(sb);
 
-        versionView.setText("WGram 0.2 · " + getVersionName());
+        versionView.setText("WGram 0.3 · " + getVersionName());
     }
 
 
@@ -647,7 +647,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
         items.add(SettingCell.Factory.of(27, 0xFF55C8E8, 0xFF6963EF,
-            R.drawable.settings_features, getString(R.string.WGramSettings), getString(R.string.WGramSettingsInfo)));
+            R.drawable.wgram_logo, getString(R.string.WGramSettings), getString(R.string.WGramSettingsInfo)));
         items.add(UItem.asShadow(null));
 
         accountNumbers.clear();
@@ -764,6 +764,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.SettingsHelp)));
+        items.add(SettingCell.Factory.of(28, 0xFF35B9FF, 0xFF5978F5, R.drawable.wgram_logo, getString(R.string.WGramNews), "@WGramnews"));
         items.add(SettingCell.Factory.of(17, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_ask, getString(R.string.AskAQuestion)));
         items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_faq, getString(R.string.TelegramFAQ)));
         items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_features, getString(R.string.TelegramFeatures)));
@@ -843,6 +844,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             return;
         }
         switch (item.id) {
+            case 28:
+                Browser.openUrl(getParentActivity(), "https://t.me/WGramnews");
+                break;
             case 27:
                 presentSettingFragment(new WGramSettingsActivity(currentAccount));
                 break;

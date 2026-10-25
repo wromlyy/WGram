@@ -144,6 +144,7 @@ jobs:
           timeout 180 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
           adb logcat -d > wgram-ui-results/logcat.txt
           adb exec-out screencap -p > wgram-ui-results/screen.png
+          adb pull /sdcard/Android/data/org.wgram.messenger.beta/files/wgram-ui-results wgram-ui-results/screens || true
           grep -q 'WGRAM_SMOKE_OK' wgram-ui-results/instrumentation.txt
       - name: Collect crash log
         if: ${{ always() && inputs.run_ui_smoke && !inputs.check_java_only }}

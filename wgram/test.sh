@@ -16,6 +16,8 @@ java -cp "$wgram_test_output" JavaSyntaxCheck \
     TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java \
     TMessagesProj/src/main/java/org/telegram/messenger/UserConfig.java \
     TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java \
+    TMessagesProj/src/main/java/org/telegram/ui/ActionBar/MessageDrawable.java \
+    TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java \
     TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java \
     TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java \
     TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java \

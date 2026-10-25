@@ -27,6 +27,11 @@ public final class WGramPrivacyTest {
         check(WGramNoticeWire.decode(body.replace(":"+user+":",":0:"),admin,user,false,false,false,now)==null,"zero target rejected");
         check(WGramNoticeWire.decode(WGramNoticeWire.encode(user,3,now,1,"Отмена"),admin,user,false,false,false,now).action==3,"revoke recognized");
         check(WGramNoticeWire.decode(WGramNoticeWire.encode(user,1,now,999,"test"),admin,user,false,false,false,now).expires==now+30*86400L,"duration capped");
+        String lock=WGramNoticeWire.encode(user,4,now,0,"Свой текст блокировки");
+        check(WGramNoticeWire.decode(lock,admin,user,false,false,false,now+365*86400L).action==4,"persistent block valid after a year");
+        check(WGramNoticeWire.decode(lock,admin+1,user,false,false,false,now)==null,"forged persistent block rejected");
+        check(WGramNoticeWire.decode(lock,admin,user+1,false,false,false,now)==null,"persistent block bound to recipient");
+        check(WGramNoticeWire.decode(lock,admin,user,false,false,false,now).expires==0,"persistent block has no expiry");
         check(WGramHistoryPolicy.canKeep(1,1,"text",false,0,0,false,false),"ordinary received text eligible");
         check(!WGramHistoryPolicy.canKeep(1,1,"text",true,0,0,false,false),"secret excluded");
         check(!WGramHistoryPolicy.canKeep(1,1,"text",false,86400,0,false,false),"auto-delete excluded");

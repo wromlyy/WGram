@@ -4009,6 +4009,8 @@ public class ChatActivity extends BaseFragment implements
                     getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of("/help", dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false));
                 } else if (id == bot_settings) {
                     getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of("/settings", dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false));
+                } else if (id == 190030) {
+                    org.telegram.ui.wgram.WGramCopyProfile.show(ChatActivity.this,currentUser);
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4359,6 +4361,11 @@ public class ChatActivity extends BaseFragment implements
             });
             otherIcon.addView(headerItem.getIconView());
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
+            if(currentUser!=null&&!currentUser.self&&!currentUser.bot&&!currentUser.deleted&&currentEncryptedChat==null){
+                headerItem.lazilyAddSubItem(190030,R.drawable.msg_copy,getString(R.string.WGramCopyProfile));
+                org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).load(currentUser.id,()->{});
+            }
+
 
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
                 savedChatsItem = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.SavedViewAsChats));
@@ -26631,6 +26638,16 @@ public class ChatActivity extends BaseFragment implements
                 updateReplyMessageOwners(mid, null);
             }
             if (obj != null) {
+                if (chatMode==MODE_DEFAULT && !isThreadChat() && currentEncryptedChat==null
+                        && org.telegram.messenger.wgram.WGramHistory.canShowInline(currentAccount,obj)) {
+                    obj.deleted=false;
+                    obj.wgramDeleted=true;
+                    obj.forceUpdate=true;
+                    obj.resetLayout();
+                    org.telegram.messenger.wgram.WGramHistory.saveVisibleDeleted(currentAccount,obj.messageOwner);
+                    if(chatAdapter!=null)chatAdapter.updateRowWithMessageObject(obj,false,false);
+                    continue;
+                }
                 if (obj.messageOwner.reply_to != null && !(obj.messageOwner.action instanceof TLRPC.TL_messageActionPinMessage)) {
                     int replyId = obj.getReplyAnyMsgId();
                     if (threadMessageObject != null && threadMessageObject.getId() == replyId) {
@@ -31000,6 +31017,15 @@ public class ChatActivity extends BaseFragment implements
         }
         if (message == null) {
             return false;
+        }
+        if(message.wgramDeleted){
+            final MessageObject archived=message;
+            showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramDeletedActions))
+                .setMessage(getString(R.string.WGramDeletedInline))
+                .setPositiveButton(getString(R.string.Copy),(d,w)->AndroidUtilities.addToClipboard(archived.messageOwner.message))
+                .setNeutralButton(getString(R.string.WGramChatHistory),(d,w)->presentFragment(new org.telegram.ui.wgram.WGramHistoryActivity(currentAccount,dialog_id)))
+                .setNegativeButton(getString(R.string.Close),null).create());
+            return true;
         }
         if (!single && TlUtils.isInstance(message.messageOwner.action,
                 TLRPC.TL_messageActionChangeCommunity.class,

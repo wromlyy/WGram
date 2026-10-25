@@ -14,13 +14,21 @@ public final class WGramConfig {
     public static final int GLASS_LIGHT = 1;
     private WGramConfig() {}
 
-    private static SharedPreferences global() {
-        return ApplicationLoader.applicationContext.getSharedPreferences("wgram", Context.MODE_PRIVATE);
+    private static SharedPreferences globalPreferences;
+    private static final SharedPreferences[] accountPreferences=new SharedPreferences[UserConfig.MAX_ACCOUNT_COUNT];
+    private static final long[] preferenceUsers=new long[UserConfig.MAX_ACCOUNT_COUNT];
+    private static synchronized SharedPreferences global() {
+        if(globalPreferences==null)globalPreferences=ApplicationLoader.applicationContext.getSharedPreferences("wgram",Context.MODE_PRIVATE);
+        return globalPreferences;
     }
-    public static SharedPreferences account(int account) {
+    public static synchronized SharedPreferences account(int account) {
         // Slots can be reused after logout: isolate preferences by actual Telegram user ID.
         long userId = UserConfig.getInstance(account).getClientUserId();
-        return ApplicationLoader.applicationContext.getSharedPreferences("wgram_user_" + userId, Context.MODE_PRIVATE);
+        if(accountPreferences[account]==null || preferenceUsers[account]!=userId){
+            preferenceUsers[account]=userId;
+            accountPreferences[account]=ApplicationLoader.applicationContext.getSharedPreferences("wgram_user_"+userId,Context.MODE_PRIVATE);
+        }
+        return accountPreferences[account];
     }
     public static boolean isGlassEnabled() { return global().getBoolean("glass_enabled", true); }
     public static void setGlassEnabled(boolean enabled) { global().edit().putBoolean("glass_enabled", enabled).apply(); }
@@ -54,6 +62,8 @@ public final class WGramConfig {
         setGlassTint(0); setGlassHighlight(65); setGlassRefraction(75); setGlassRim(true); setGlassShadow(true);
     }
     private static int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
+    public static int getChatStyle(){return clamp(global().getInt("chat_style",0),0,3);}
+    public static void setChatStyle(int style){global().edit().putInt("chat_style",clamp(style,0,3)).apply();}
     public static boolean isHistoryEnabled(int a) { return account(a).getBoolean("history", false); }
     public static void setHistoryEnabled(int a, boolean enabled) { account(a).edit().putBoolean("history", enabled).apply(); }
     public static int getHistoryDays(int a) { return account(a).getInt("history_days", 7) == 30 ? 30 : 7; }
