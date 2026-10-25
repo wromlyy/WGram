@@ -1,4 +1,5 @@
 name: WGram debug APK
+run-name: ${{ inputs.check_java_only && 'WGram Android Java check' || 'WGram debug APK' }}
 on:
   workflow_dispatch:
     inputs:
@@ -58,6 +59,8 @@ jobs:
               key.parent.mkdir(parents=True, exist_ok=True)
               key.write_bytes(base64.b64decode(data, validate=True))
               key.chmod(0o600)
+              with open(os.environ['GITHUB_ENV'], 'a') as env:
+                  env.write('WGRAM_DEBUG_KEYSTORE_PATH=' + str(key) + '\n')
               print('Using persistent WGram development signing key.')
           else:
               print('No persistent signing key configured; Android will generate a temporary debug key.')

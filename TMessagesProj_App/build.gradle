@@ -47,6 +47,16 @@ android {
     }
 
     signingConfigs {
+        debug {
+            def wgramKeyPath = System.getenv('WGRAM_DEBUG_KEYSTORE_PATH')
+            if (wgramKeyPath) {
+                storeFile file(wgramKeyPath)
+                storeType 'JKS'
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
 
         release {
             storeFile file("../TMessagesProj/config/release.keystore")

@@ -1,0 +1,61 @@
+name: WGram sign existing APK
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Successful WGram debug APK run to re-sign'
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install signing tools
+        run: sdkmanager 'build-tools;36.0.0'
+      - name: Restore signing key
+        env:
+          WGRAM_DEBUG_KEYSTORE_BASE64: ${{ secrets.WGRAM_DEBUG_KEYSTORE_BASE64 }}
+          WGRAM_SOURCE_RUN: ${{ inputs.source_run_id }}
+        run: |
+          python3 - <<'PYKEY'
+          import base64, os, pathlib, re
+          if not re.fullmatch(r'[1-9][0-9]*', os.environ['WGRAM_SOURCE_RUN']):
+              raise SystemExit('source_run_id must be a positive integer.')
+          data = os.environ.get('WGRAM_DEBUG_KEYSTORE_BASE64', '').strip()
+          if not data:
+              raise SystemExit('Configure WGRAM_DEBUG_KEYSTORE_BASE64 first.')
+          key = pathlib.Path(os.environ['RUNNER_TEMP']) / 'wgram-debug.keystore'
+          key.write_bytes(base64.b64decode(data, validate=True))
+          key.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('WGRAM_DEBUG_KEYSTORE_PATH=' + str(key) + '\n')
+          PYKEY
+      - uses: actions/download-artifact@v4
+        with:
+          name: WGram-debug
+          path: resign-input
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Sign with persistent WGram development key
+        run: |
+          mkdir -p out
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$WGRAM_DEBUG_KEYSTORE_PATH" --ks-type JKS --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out out/app.apk resign-input/app.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs out/app.apk
+          sha256sum out/app.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WGram-debug
+          path: out/app.apk
+          if-no-files-found: error
