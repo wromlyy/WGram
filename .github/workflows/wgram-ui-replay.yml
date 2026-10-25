@@ -18,6 +18,12 @@ on:
         type: choice
         default: auto
         options: [auto, high, light]
+      gpu_mode:
+        description: 'Software graphics backend for the emulator'
+        required: true
+        type: choice
+        default: swiftshader
+        options: [swiftshader, lavapipe, swangle, software]
 permissions:
   contents: read
   actions: read
@@ -47,6 +53,7 @@ jobs:
         env:
           WGRAM_TEST_API: ${{ inputs.api_level }}
           WGRAM_TEST_PERFORMANCE: ${{ inputs.performance_class }}
+          WGRAM_TEST_GPU: ${{ inputs.gpu_mode }}
         run: |
           rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
           sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"
@@ -59,7 +66,7 @@ jobs:
           test -f "$ANDROID_AVD_HOME/wgram-smoke.ini"
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x wgram-smoke
           mkdir -p wgram-ui-results
-          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -cores 2 -memory 3072 > wgram-ui-results/emulator.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu "$WGRAM_TEST_GPU" -cores 4 -memory 2048 -skin 720x1280 -dpi-device 320 -show-kernel > wgram-ui-results/emulator.log 2>&1 &
           timeout 60 adb wait-for-device
           # Airplane mode does not disable the emulator's virtual Ethernet.
           adb root
@@ -93,6 +100,7 @@ jobs:
             high) printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="2" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"' ;;
             light) printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="0" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"' ;;
           esac
+          printf '%s\n' "$WGRAM_TEST_GPU" > wgram-ui-results/gpu-mode.txt
           printf '%s\n' "$WGRAM_TEST_PERFORMANCE" > wgram-ui-results/performance.txt
           adb shell getprop ro.build.version.sdk > wgram-ui-results/android-api.txt
           timeout 15 adb logcat -c
