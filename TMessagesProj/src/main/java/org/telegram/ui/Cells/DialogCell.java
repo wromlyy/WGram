@@ -638,7 +638,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean drawBotVerified;
     private boolean drawPremium;
     private final View emojiStatusView;
-    private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable emojiStatus;
+    private final org.telegram.ui.wgram.WGramBadgeDrawable emojiStatus;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerification;
 
     private int drawScam;
@@ -715,7 +715,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
         };
         addView(emojiStatusView);
-        emojiStatus = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(emojiStatusView, dp(22));
+        emojiStatus = new org.telegram.ui.wgram.WGramBadgeDrawable(emojiStatusView, dp(22));
+        emojiStatus.setCurrentAccount(currentAccount);
         botVerification = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(this, dp(17));
         avatarImage.setAllowLoadingOnAttachedOnly(true);
     }
@@ -985,7 +986,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (emojiStatusView != null) {
             emojiStatusView.measure(
-                MeasureSpec.makeMeasureSpec(dp(22), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(emojiStatus.getIntrinsicWidth(), MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(dp(22), MeasureSpec.EXACTLY)
             );
         }
@@ -1053,7 +1054,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             return;
         }
         if (emojiStatusView != null) {
-            emojiStatusView.layout(0, 0, dp(22), dp(22));
+            emojiStatusView.layout(0, 0, emojiStatus.getIntrinsicWidth(), dp(22));
         }
         if (checkBox != null) {
             int paddingStart = dp(messagePaddingStart - (useForceThreeLines || SharedConfig.useThreeLinesLayout ? 29 : 27));
@@ -1507,9 +1508,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             drawVerified = !forbidVerified && user.verified;
                             drawBotVerified = !forbidVerified && !UserObject.isUserSelf(user) && user.bot_verification_icon != 0;
                         }
-                        drawPremium = MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
+                        org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).ensure(user.id);
+                        long wgramStatus = DialogObject.getEmojiStatusDocumentId(org.telegram.messenger.wgram.WGramConfig.getDisplayedStatus(currentAccount, user));
+                        drawPremium = wgramStatus != 0 || org.telegram.messenger.wgram.WGramConfig.hasLocalBadge(currentAccount, user)
+                            || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(currentAccount, user)
+                            || MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
                         if (drawPremium) {
-                            Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
+                            Long emojiStatusId = wgramStatus == 0 ? null : wgramStatus;
+                            if (emojiStatus.setBadges(currentAccount, user)) requestLayout();
                             emojiStatus.center = LocaleController.isRTL;
                             if (emojiStatusId != null) {
                                 nameLayoutEllipsizeByGradient = true;
@@ -1528,6 +1534,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
             }
 
+            if ((!drawPremium || user == null) && emojiStatus.setBadges(currentAccount, null)) requestLayout();
             int lastDate = lastMessageDate;
             if (lastMessageDate == 0 && message != null) {
                 lastDate = message.messageOwner.date;
@@ -2332,7 +2339,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         nameAdditionalsForChannelSubscriber = 0;
         final boolean reserveMuteSlot = (dialogMuted || isHiddenInCommunity || drawUnmute || dialogMutedProgress > 0) && !drawVerified && drawScam == 0;
         if (drawPremium && emojiStatus.getDrawable() != null) {
-            int w = dp(6 + 24 + 6);
+            int w = (dp(12) + emojiStatus.getIntrinsicWidth());
             if (reserveMuteSlot) {
                 w += dp(6) + Theme.dialogs_muteDrawable.getIntrinsicWidth();
             }
@@ -2344,7 +2351,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         } else if (reserveMuteSlot) {
             int w = dp(6) + Theme.dialogs_muteDrawable.getIntrinsicWidth();
             if (drawPremium) {
-                w += dp(6 + 24 + 6);
+                w += (dp(12) + emojiStatus.getIntrinsicWidth());
             }
             nameWidth -= w;
             nameAdditionalsForChannelSubscriber += w;
@@ -2359,7 +2366,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameLeft += w;
             }
         } else if (drawPremium) {
-            int w = dp(6 + 24 + 6);
+            int w = (dp(12) + emojiStatus.getIntrinsicWidth());
             nameWidth -= w;
             nameAdditionalsForChannelSubscriber += w;
             if (LocaleController.isRTL) {
@@ -2823,7 +2830,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
                 if ((dialogMuted || drawUnmute || dialogMutedProgress > 0) && !drawVerified && drawScam == 0) {
                     if (drawPremium) {
-                        nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx - left) - dp(24));
+                        nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx - left) - emojiStatus.getIntrinsicWidth());
                         nameMutedIconLeft = nameMuteLeft - dp(6) - Theme.dialogs_muteDrawable.getIntrinsicWidth();
                     } else {
                         nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx) - dp(6) - Theme.dialogs_muteDrawable.getIntrinsicWidth());
@@ -2831,7 +2838,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 } else if (drawVerified) {
                     nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx) - dp(6) - Theme.dialogs_verifiedDrawable.getIntrinsicWidth());
                 } else if (drawPremium) {
-                    nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx - left) - dp(24));
+                    nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx - left) - emojiStatus.getIntrinsicWidth());
                     nameMutedIconLeft = nameMuteLeft - dp(6) - Theme.dialogs_muteDrawable.getIntrinsicWidth();
                 } else if (drawScam != 0) {
                     nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx) - dp(6) - (drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable).getIntrinsicWidth());
@@ -2924,7 +2931,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 if ((dialogMuted || true) || drawUnmute || drawVerified || drawPremium || drawScam != 0) {
                     nameMuteLeft = (int) (nameLeft + left + dp(6));
                     if (drawPremium) {
-                        nameMutedIconLeft = nameMuteLeft + dp(24 + 6);
+                        nameMutedIconLeft = nameMuteLeft + emojiStatus.getIntrinsicWidth() + dp(6);
                     }
                 }
             }
@@ -3362,19 +3369,25 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                     }
                 }
                 if ((mask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
+                    updateHelper.lastDrawnSizeHash = -1;
                     long dialogBotVerificationIcon = 0;
                     if (user != null) {
                         user = MessagesController.getInstance(currentAccount).getUser(user.id);
-                        if (user != null && DialogObject.getEmojiStatusDocumentId(user.emoji_status) != 0) {
+                        TLRPC.EmojiStatus displayed = org.telegram.messenger.wgram.WGramConfig.getDisplayedStatus(currentAccount, user);
+                        if (user != null && DialogObject.getEmojiStatusDocumentId(displayed) != 0) {
                             nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.set(DialogObject.getEmojiStatusDocumentId(user.emoji_status), animated);
+                            emojiStatus.set(DialogObject.getEmojiStatusDocumentId(displayed), animated);
                             emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(user.emoji_status), animated);
                         } else {
                             nameLayoutEllipsizeByGradient = true;
                             emojiStatus.set(PremiumGradient.getInstance().premiumStarDrawableMini, animated);
                             emojiStatus.setParticles(false, animated);
                         }
+                        emojiStatus.setBadges(currentAccount, user);
                         dialogBotVerificationIcon = DialogObject.getBotVerificationIcon(user);
+                        rebuildLayout = true;
+                        requestLayout = true;
+                        continueUpdate = true;
                         invalidate = true;
                     }
                     if (chat != null) {
@@ -4518,7 +4531,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         emojiStatus.setBounds(
                             nameMuteLeft - dp(2),
                             y - dp(4),
-                            nameMuteLeft + dp(20),
+                            nameMuteLeft - dp(2) + emojiStatus.getIntrinsicWidth(),
                             y - dp(4) + dp(22)
                         );
                         emojiStatus.draw(canvas);

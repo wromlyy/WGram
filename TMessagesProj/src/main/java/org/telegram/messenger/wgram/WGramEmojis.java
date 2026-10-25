@@ -16,7 +16,8 @@ public final class WGramEmojis {
         if (entities == null || UserConfig.getInstance(account).isPremium() || !canCompose(account, dialogId)) return entities;
         ArrayList<TLRPC.MessageEntity> result = new ArrayList<>(entities.size());
         for (TLRPC.MessageEntity entity : entities) {
-            if (entity instanceof TLRPC.TL_messageEntityCustomEmoji && WGramEmojiWire.validRange(text, entity.offset, entity.length)) {
+            if (entity instanceof TLRPC.TL_messageEntityCustomEmoji) {
+                if (!WGramEmojiWire.validRange(text, entity.offset, entity.length)) continue;
                 long id = ((TLRPC.TL_messageEntityCustomEmoji) entity).document_id;
                 if (id > 0) {
                     TLRPC.TL_messageEntityTextUrl link = new TLRPC.TL_messageEntityTextUrl();
@@ -26,6 +27,7 @@ public final class WGramEmojis {
                     result.add(link);
                     continue;
                 }
+                continue; // Never send an invalid custom emoji entity to Telegram.
             }
             result.add(entity);
         }
@@ -41,14 +43,18 @@ public final class WGramEmojis {
         ArrayList<TLRPC.MessageEntity> result = null;
         for (int i = 0; i < entities.size(); i++) {
             TLRPC.MessageEntity entity = entities.get(i);
-            if (isEmojiLink(entity, text)) {
-                if (result == null) result = new ArrayList<>(entities);
+            boolean invalid = entity instanceof TLRPC.TL_messageEntityCustomEmoji
+                && (!WGramEmojiWire.validRange(text, entity.offset, entity.length)
+                    || ((TLRPC.TL_messageEntityCustomEmoji) entity).document_id <= 0);
+            if (invalid || isEmojiLink(entity, text)) {
+                if (result == null) result = new ArrayList<>(entities.subList(0, i));
+                if (invalid) continue;
                 TLRPC.TL_messageEntityCustomEmoji emoji = new TLRPC.TL_messageEntityCustomEmoji();
                 emoji.offset = entity.offset;
                 emoji.length = entity.length;
                 emoji.document_id = WGramEmojiWire.decode(entity.url);
-                result.set(i, emoji);
-            }
+                result.add(emoji);
+            } else if (result != null) result.add(entity);
         }
         return result == null ? entities : result;
     }

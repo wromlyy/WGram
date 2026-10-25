@@ -122,7 +122,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     public boolean allowShorterStatus = false;
     public boolean premiumIconHiddable = false;
 
-    private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable emojiStatusDrawable;
+    private final org.telegram.ui.wgram.WGramBadgeDrawable emojiStatusDrawable;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerificationDrawable;
 
     protected boolean useAnimatedSubtitle() {
@@ -375,7 +375,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             }
         }
 
-        emojiStatusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(titleTextView, dp(24));
+        emojiStatusDrawable = new org.telegram.ui.wgram.WGramBadgeDrawable(titleTextView, dp(24));
         botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(titleTextView, dp(17));
     }
 
@@ -937,6 +937,18 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     }
 
     public void setTitle(CharSequence value, boolean scam, boolean fake, boolean verified, boolean premium, TLRPC.EmojiStatus emojiStatus, boolean animated) {
+        TLRPC.User wgramUser = parentFragment == null ? null : parentFragment.getCurrentUser();
+        int wgramAccount = parentFragment == null ? currentAccount : parentFragment.getCurrentAccount();
+        if (wgramUser != null) {
+            org.telegram.messenger.wgram.WGramSharedProfiles.get(wgramAccount).ensure(wgramUser.id);
+            emojiStatus = org.telegram.messenger.wgram.WGramConfig.getDisplayedStatus(wgramAccount, wgramUser);
+            premium |= org.telegram.messenger.wgram.WGramConfig.hasLocalBadge(wgramAccount, wgramUser)
+                || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(wgramAccount, wgramUser);
+        }
+        if (emojiStatusDrawable.setBadges(wgramAccount, wgramUser)) {
+            titleTextView.setText(titleTextView.getText(), true);
+            titleTextView.requestLayout();
+        }
         if (value != null) {
             value = Emoji.replaceEmoji(value, titleTextView.getPaint().getFontMetricsInt(), false);
         }

@@ -196,7 +196,7 @@ public final class WGramAdminActivity extends UniversalFragment {
             case 31:WGramUi.input(this,getString(R.string.WGramBadgeDescription),badgeDescription,false,300,t->{badgeDescription=t;refresh();});return;
             case 32:presentFragment(new WGramEmojiPickerActivity(currentAccount,id->{badgeEmoji=id;refresh();}));return;
             case 33:badge(true);return;
-            case 34:badge(false);return;
+            case 34:revokeBadge();return;
             case 35:saveTemplate();return;
             case 36:templates();return;
             case 40:presentFragment(new WGramServiceActivity(currentAccount));return;
@@ -208,6 +208,33 @@ public final class WGramAdminActivity extends UniversalFragment {
                 +"\nLiquid Glass: "+WGramConfig.isGlassEnabled()+"\n"+getString(R.string.WGramHistory)+": "+WGramConfig.isHistoryEnabled(currentAccount));return;
         }
         refresh();
+    }
+    private void revokeBadge(){
+        if(!owner()||busy||target<=0)return;
+        final long recipient=target;
+        org.telegram.messenger.wgram.WGramSharedProfiles profiles=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount);
+        busy=true;refresh();profiles.invalidate(recipient);
+        profiles.load(recipient,()->{
+            busy=false;refresh();if(!owner()||getParentActivity()==null)return;
+            org.telegram.messenger.wgram.WGramSharedProfiles.Profile profile=profiles.peek(recipient);
+            if(profile==null){WGramUi.info(this,getString(R.string.WGramServiceFailed));return;}
+            if(profile.badges.isEmpty()){WGramUi.info(this,getString(R.string.WGramNoBadges));return;}
+            ArrayList<org.telegram.messenger.wgram.WGramSharedProfiles.Badge> awards=new ArrayList<>(profile.badges);
+            CharSequence[] names=new CharSequence[awards.size()];
+            for(int i=0;i<names.length;i++)names[i]=awards.get(i).title;
+            showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramBadgeRevoke))
+                .setItems(names,(dialog,index)->{
+                    org.telegram.messenger.wgram.WGramSharedProfiles.Badge award=awards.get(index);
+                    showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramBadgeRevoke))
+                        .setMessage("ID "+recipient+"\n\n"+award.title)
+                        .setPositiveButton(getString(R.string.WGramBadgeRevoke),(d,w)->{
+                            if(!owner()||busy)return;busy=true;refresh();
+                            profiles.badge(recipient,false,0,"","",award.id,(result,error)->{
+                                busy=false;refresh();if(owner())WGramUi.info(this,error==null?getString(R.string.WGramBadgeSaved):WGramServiceActivity.error(error));
+                            });
+                        }).setNegativeButton(getString(R.string.Cancel),null).create());
+                }).create());
+        });
     }
     private void badge(boolean active){
         if(!owner()||busy)return;

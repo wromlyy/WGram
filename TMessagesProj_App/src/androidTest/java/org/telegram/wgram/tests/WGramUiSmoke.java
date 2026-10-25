@@ -107,6 +107,70 @@ public final class WGramUiSmoke extends Instrumentation {
         if(!done.await(20,java.util.concurrent.TimeUnit.SECONDS))throw new AssertionError("history checks timed out");
         if(error[0]!=null)throw error[0];
     }
+    private Object field(Object object,String name) throws Exception {
+        Class<?> type=object.getClass();
+        while(type!=null){try{java.lang.reflect.Field f=type.getDeclaredField(name);f.setAccessible(true);return f.get(object);}catch(NoSuchFieldException e){type=type.getSuperclass();}}
+        throw new NoSuchFieldException(name);
+    }
+    @SuppressWarnings("unchecked")
+    private void seedAwards(long uid) throws Exception {
+        org.telegram.messenger.wgram.WGramSharedProfiles service=org.telegram.messenger.wgram.WGramSharedProfiles.get(0);
+        service.peek(uid);
+        org.telegram.messenger.wgram.WGramSharedProfiles.Profile profile=new org.telegram.messenger.wgram.WGramSharedProfiles.Profile();
+        java.lang.reflect.Constructor<org.telegram.messenger.wgram.WGramSharedProfiles.Badge> constructor=
+            org.telegram.messenger.wgram.WGramSharedProfiles.Badge.class.getDeclaredConstructor(org.json.JSONObject.class);
+        constructor.setAccessible(true);
+        for(int i=0;i<3;i++)profile.badges.add(constructor.newInstance(new org.json.JSONObject().put("id","fixture"+i)
+            .put("emoji",5368324170671202286L+i).put("title","Award "+i).put("description","Offline layout fixture")));
+        profile.badgeEmoji=profile.badges.get(0).emoji;profile.badgeTitle=profile.badges.get(0).title;
+        ((android.util.LruCache<Long,org.telegram.messenger.wgram.WGramSharedProfiles.Profile>)field(service,"cache")).put(uid,profile);
+    }
+    private void emojiChecks() {
+        String text="😀😀";
+        ArrayList<TLRPC.MessageEntity> entities=new ArrayList<>();
+        for(int i=0;i<2;i++){
+            TLRPC.TL_messageEntityTextUrl e=new TLRPC.TL_messageEntityTextUrl();e.offset=i*2;e.length=2;
+            e.url=org.telegram.messenger.wgram.WGramEmojiWire.encode(5368324170671202286L+i);entities.add(e);
+        }
+        android.graphics.Paint paint=new android.graphics.Paint();paint.setTextSize(org.telegram.messenger.AndroidUtilities.dp(16));
+        android.text.Spannable rendered=MessageObject.replaceAnimatedEmoji(text,entities,paint.getFontMetricsInt());
+        org.telegram.ui.Components.AnimatedEmojiSpan[] spans=rendered.getSpans(0,rendered.length(),org.telegram.ui.Components.AnimatedEmojiSpan.class);
+        check(spans.length==2,"adjacent received emojis render as two spans");
+        check(rendered.getSpanEnd(spans[0])<=rendered.getSpanStart(spans[1]),"emoji spans do not overlap");
+        CharSequence editing=org.telegram.ui.Components.ChatActivityEnterView.applyMessageEntities(entities,text,paint.getFontMetricsInt());
+        check(editing instanceof android.text.Spanned&&((android.text.Spanned)editing).getSpans(0,editing.length(),org.telegram.ui.Components.AnimatedEmojiSpan.class).length==2,"editing restores both emojis");
+        TLRPC.TL_messageEntityCustomEmoji broken=new TLRPC.TL_messageEntityCustomEmoji();broken.offset=-1;broken.length=Integer.MAX_VALUE;broken.document_id=42;
+        entities.add(broken);check(MessageObject.replaceAnimatedEmoji(text,entities,paint.getFontMetricsInt())!=null,"corrupt emoji cannot crash Android renderer");
+    }
+    private BaseFragment dialogFixture() {
+        return new BaseFragment(){@Override public android.view.View createView(android.content.Context context){
+            android.widget.LinearLayout root=new android.widget.LinearLayout(context);root.setOrientation(android.widget.LinearLayout.VERTICAL);
+            root.setBackgroundColor(org.telegram.ui.ActionBar.Theme.getColor(org.telegram.ui.ActionBar.Theme.key_windowBackgroundWhite));
+            actionBar.setTitle("WGram badge layout");
+            for(boolean rtl:new boolean[]{false,true}){
+                boolean saved=org.telegram.messenger.LocaleController.isRTL;
+                org.telegram.messenger.LocaleController.isRTL=rtl;
+                try{
+                    org.telegram.ui.Cells.DialogCell cell=new org.telegram.ui.Cells.DialogCell(null,context,false,false,0,null);
+                    cell.setDialog(9000000001L,null,(int)(System.currentTimeMillis()/1000),false,false);
+                    int width=org.telegram.messenger.AndroidUtilities.dp(320);
+                    cell.measure(android.view.View.MeasureSpec.makeMeasureSpec(width,android.view.View.MeasureSpec.EXACTLY),android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED));
+                    cell.layout(0,0,width,cell.getMeasuredHeight());cell.buildLayout();
+                    org.telegram.ui.wgram.WGramBadgeDrawable strip=(org.telegram.ui.wgram.WGramBadgeDrawable)field(cell,"emojiStatus");
+                    android.view.View view=(android.view.View)field(cell,"emojiStatusView");
+                    check((Boolean)field(cell,"drawPremium"),"non-premium award visible "+rtl);
+                    check(strip.getIntrinsicWidth()==org.telegram.messenger.AndroidUtilities.dp(22)*3+org.telegram.messenger.AndroidUtilities.dp(2)*2,"three awards measured "+rtl);
+                    check(view.getWidth()==strip.getIntrinsicWidth(),"badge view reserves complete strip "+rtl);
+                    android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(width,cell.getMeasuredHeight(),android.graphics.Bitmap.Config.ARGB_8888);
+                    cell.draw(new android.graphics.Canvas(bitmap));bitmap.recycle();
+                    int badgeLeft=(Integer)field(cell,"nameMuteLeft")-org.telegram.messenger.AndroidUtilities.dp(2);
+                    check(badgeLeft>=0&&badgeLeft+strip.getIntrinsicWidth()<=width,"awards stay in cell "+rtl);
+                    root.addView(cell,new android.widget.LinearLayout.LayoutParams(width,cell.getMeasuredHeight()));
+                }catch(Exception e){throw new RuntimeException(e);}finally{org.telegram.messenger.LocaleController.isRTL=saved;}
+            }
+            return fragmentView=root;
+        }};
+    }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
@@ -132,6 +196,14 @@ public final class WGramUiSmoke extends Instrumentation {
             main(()->WGramConfig.setProfileEmoji(0,5368324170671202286L));
             open("profile with local status", new ProfileActivity(own));
             main(()->WGramConfig.setProfileEmoji(0,0));
+            main(()->{try{seedAwards(8226881959L);seedAwards(9000000001L);}catch(Exception e){throw new RuntimeException(e);}});
+            open("profile with three badges",new ProfileActivity(own));
+            open("other profile with three badges",new ProfileActivity(other));
+            open("chat with three badges",new ChatActivity(other));
+            main(()->MessagesController.getInstance(0).getUser(9000000001L).first_name="Very long WGram profile name for badge layout");
+            open("dialog badges LTR RTL",dialogFixture());
+            main(this::emojiChecks);
+            open("emoji picker",new org.telegram.ui.wgram.WGramEmojiPickerActivity(0));
             open("settings", new SettingsActivity());
             open("WGram settings", new WGramSettingsActivity(0));
             open("glass settings", new WGramSettingsActivity(0,101));

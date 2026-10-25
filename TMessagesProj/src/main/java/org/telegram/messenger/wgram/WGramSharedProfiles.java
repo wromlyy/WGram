@@ -3,6 +3,7 @@ package org.telegram.messenger.wgram;
 import android.util.Base64;
 import android.util.LruCache;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.MessagesController;
@@ -18,11 +19,23 @@ import java.util.ArrayList;
 
 /** Opt-in profile service. No catalog groups are created, searched, joined, or messaged. */
 public final class WGramSharedProfiles {
+    public static final int MAX_BADGES = 3;
+    public static final class Badge {
+        public final String id, title, description;
+        public final long emoji;
+        private Badge(JSONObject value) {
+            id = value.optString("id");
+            title = clip(value.optString("title"), 40);
+            description = clip(value.optString("description"), 300);
+            emoji = Math.max(0, value.optLong("emoji"));
+        }
+    }
     public static final class Profile {
         public boolean premium;
         public long emoji,badgeEmoji;
         public int color=-1;
         public String badgeTitle="",badgeDescription="";
+        public final ArrayList<Badge> badges = new ArrayList<>();
         public File banner;
         long fetched;
     }
@@ -41,6 +54,7 @@ public final class WGramSharedProfiles {
         }
     };
     private final HashSet<Long> loading=new HashSet<>();
+    private final HashMap<Long,Long> attempted=new HashMap<>();
     private final HashMap<Long,ArrayList<Runnable>> callbacks=new HashMap<>();
     private WGramSharedProfiles(int account){
         this.account=account;
@@ -54,8 +68,18 @@ public final class WGramSharedProfiles {
     public static boolean hasPremium(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p!=null&&p.premium;}
     public static long status(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?0:p.badgeEmoji>0?p.badgeEmoji:p.emoji;}
     public static int color(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?-1:p.color;}
-    public void clear(){generation++;cache.evictAll();loading.clear();callbacks.clear();}
-    public void invalidate(long user){cache.remove(user);}
+    public void clear(){generation++;cache.evictAll();loading.clear();callbacks.clear();attempted.clear();}
+    public void invalidate(long user){cache.remove(user);attempted.remove(user);}
+    /** Only visible users: coalesced requests, including backoff after network failures. */
+    public void ensure(long user) {
+        accountCheck();
+        Long last = attempted.get(user);
+        if (user <= 0 || !WGramService.connected(account) || loading.contains(user)
+            || last != null && System.currentTimeMillis() - last < 120000) return;
+        if (attempted.size() >= 256) attempted.clear();
+        attempted.put(user, System.currentTimeMillis());
+        load(user, () -> {});
+    }
     public void load(long user,Runnable changed){
         accountCheck();
         if(user<=0||!WGramService.connected(account)){changed.run();return;}
@@ -69,9 +93,16 @@ public final class WGramSharedProfiles {
             if(error!=null){notifyLoaded(user);return;}
             Profile data=new Profile();data.fetched=System.currentTimeMillis();data.premium=json.optBoolean("premium");
             data.emoji=Math.max(0,json.optLong("emoji"));data.color=Math.max(-1,Math.min(100,json.optInt("color",-1)));
-            JSONObject badge=json.optJSONObject("badge");
-            if(badge!=null&&badge.optBoolean("active")){
-                data.badgeEmoji=Math.max(0,badge.optLong("emoji"));data.badgeTitle=clip(badge.optString("title"),40);data.badgeDescription=clip(badge.optString("description"),300);
+            JSONArray badges=json.optJSONArray("badges");
+            if(badges==null){badges=new JSONArray();JSONObject legacy=json.optJSONObject("badge");if(legacy!=null)badges.put(legacy);}
+            for(int i=0;i<Math.min(MAX_BADGES,badges.length());i++){
+                JSONObject value=badges.optJSONObject(i);
+                if(value==null||!value.optBoolean("active"))continue;
+                Badge badge=new Badge(value);
+                if(badge.emoji>0&&!badge.title.isEmpty())data.badges.add(badge);
+            }
+            if(!data.badges.isEmpty()){
+                Badge first=data.badges.get(0);data.badgeEmoji=first.emoji;data.badgeTitle=first.title;data.badgeDescription=first.description;
             }
             if(json.optBoolean("banner"))WGramService.banner(account,user,(bytes,failure)->{
                 if(version!=generation)return;
@@ -132,8 +163,11 @@ public final class WGramSharedProfiles {
         });
     }
     public void badge(long target,boolean active,long emoji,String title,String description,WGramService.Result callback){
+        badge(target,active,emoji,title,description,"",callback);
+    }
+    public void badge(long target,boolean active,long emoji,String title,String description,String id,WGramService.Result callback){
         try{WGramService.request(account,"/v1/admin/badge",new JSONObject().put("uid",target).put("active",active).put("emoji",emoji)
-            .put("title",clip(title,40)).put("description",clip(description,300)),true,(result,error)->{if(error==null)invalidate(target);callback.done(result,error);});}
+            .put("id",id).put("title",clip(title,40)).put("description",clip(description,300)),true,(result,error)->{if(error==null){invalidate(target);ensure(target);}callback.done(result,error);});}
         catch(Exception e){callback.done(null,"INVALID_BADGE");}
     }
 }

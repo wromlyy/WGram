@@ -11733,4 +11733,8 @@
     <string name="WGramCopyPartial">Имя и описание сохранены, но не удалось завершить копирование фото или баннера. Проверь профиль и повтори при необходимости.</string>
     <string name="WGramCopyFailed">Не удалось скопировать профиль. Проверь соединение и попробуй позже.</string>
     <string name="WGramCopyBioClipped">Описание сокращено до лимита вашего аккаунта.</string>
+    <string name="WGramProfileActions">Оформление, значки и ID</string>
+    <string name="WGramBadges">Значки WGram</string>
+    <string name="WGramBadgeLimit">У пользователя уже 3 значка. Сначала сними один из них.</string>
+    <string name="WGramNoBadges">У пользователя пока нет значков WGram.</string>
 </resources>

@@ -34,7 +34,7 @@ public final class WGramServiceActivity extends UniversalFragment {
         }
     }
     public static String error(String error){
-        return getString("CONNECT_BOT_FIRST".equals(error)?R.string.WGramServiceDisconnected:
+        return getString("BADGE_LIMIT".equals(error)?R.string.WGramBadgeLimit:"CONNECT_BOT_FIRST".equals(error)?R.string.WGramServiceDisconnected:
             "PAIR_EXPIRED".equals(error)?R.string.WGramPairExpired:"TRY_LATER".equals(error)?R.string.WGramServiceTryLater:R.string.WGramServiceFailed);
     }
     private void openBot(){

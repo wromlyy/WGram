@@ -106,6 +106,32 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(result['badge']['active'])  # Users cannot erase an admin award by updating their own profile.
         self.assertEqual(self.request('/v1/profiles/100/banner', token=other)[0], 404)
 
+    def test_multiple_awards_deduplicate_limit_revoke_and_migrate(self):
+        token = self.connect(100)
+        admin = self.connect(bot.ADMIN)
+        old = {'active': True, 'emoji': 99, 'title': 'Старый', 'description': 'Сохраняется'}
+        with bot.database() as db:
+            db.execute('INSERT INTO badges VALUES(?,?)', (100, json.dumps(old)))
+        self.assertEqual(len(self.request('/v1/profiles/100', token=token)[1]['badges']), 1)
+        for number in (100, 101):
+            award = dict(old, uid=100, emoji=number, title=str(number))
+            self.assertEqual(self.request('/v1/admin/badge', award, admin)[0], 200)
+        self.assertEqual(self.request('/v1/admin/badge', dict(award, description='Обновлено'), admin)[0], 200)
+        saved = self.request('/v1/profiles/100', token=token)[1]
+        self.assertEqual([b['emoji'] for b in saved['badges']], [99, 100, 101])
+        self.assertEqual(saved['badges'][2]['description'], 'Обновлено')
+        self.assertEqual(saved['badge'], saved['badges'][0])  # Older clients keep displaying an award.
+        self.assertEqual(self.request('/v1/admin/badge', dict(award, emoji=102), admin), (409, {'error': 'BADGE_LIMIT'}))
+        revoke = {'uid': 100, 'active': False, 'id': saved['badges'][1]['id']}
+        self.assertEqual(self.request('/v1/admin/badge', revoke, token)[0], 403)
+        self.assertEqual(self.request('/v1/admin/badge', revoke, admin)[0], 200)
+        self.assertEqual(self.request('/v1/admin/badge', revoke, admin)[0], 200)
+        self.assertEqual([b['emoji'] for b in self.request('/v1/profiles/100', token=token)[1]['badges']], [99, 101])
+        with bot.database() as db:
+            self.assertEqual([b['emoji'] for b in bot.read_badges(db, 100)], [99, 101])
+        self.assertEqual(self.request('/v1/admin/badge', {'uid': 100, 'active': False}, admin)[0], 200)
+        self.assertEqual(self.request('/v1/profiles/100', token=token)[1]['badges'], [])
+
     def test_photo_in_bot_and_api_upload_are_bounded(self):
         token = self.connect(100)
         with patch.object(bot.urllib.request, 'urlopen', return_value=BytesIO(JPEG)):

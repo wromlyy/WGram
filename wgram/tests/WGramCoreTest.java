@@ -23,6 +23,10 @@ public final class WGramCoreTest {
             prefix+"9223372036854775808", prefix+"1?x=2", prefix+"1/", prefix+"%31", prefix+"1#x",
             "https://example.com/emoji/v1/1", "wgram://emoji/v2/1", prefix+"١", prefix+"1\n"};
         for (String url : invalid) check(WGramEmojiWire.decode(url) == 0, "reject malformed URL: " + url);
+        check(WGramEmojiWire.encode(42).startsWith("https://"), "new transport uses supported HTTPS URLs");
+        check(WGramEmojiWire.decode("wgram://emoji/v1/42") == 42, "old messages still display");
+        check(WGramEmojiWire.decode("https://t.me/WGramnews?wgram_emoji=v1_42") == 42, "HTTPS receive");
+        check(WGramEmojiWire.decode("https://t.me/WGramnews?wgram_emoji=v1_42&x=1") == 0, "reject extra URL parameters");
         try { WGramEmojiWire.encode(0); throw new AssertionError("zero ID accepted"); }
         catch (IllegalArgumentException expected) { checks++; }
         String text = "hi 😀!";
@@ -67,6 +71,27 @@ public final class WGramCoreTest {
         TLRPC.TL_messageEntityTextUrl bad = new TLRPC.TL_messageEntityTextUrl();
         bad.offset=Integer.MAX_VALUE; bad.length=2; bad.url=WGramEmojiWire.encode(1);
         check(!WGramEmojis.isEmojiLink(bad,text), "malformed received range ignored");
+
+        TLRPC.TL_messageEntityCustomEmoji corrupt = new TLRPC.TL_messageEntityCustomEmoji();
+        corrupt.document_id=42; corrupt.offset=-1; corrupt.length=2;
+        ArrayList<TLRPC.MessageEntity> corrupted = new ArrayList<>(); corrupted.add(corrupt); corrupted.add(bold);
+        check(WGramEmojis.forDisplay(text, corrupted).size()==1, "negative emoji offset cannot reach renderer");
+        check(WGramEmojis.forSending(0,2001,text,corrupted).size()==1, "invalid ranges not sent");
+        corrupt.offset=3; corrupt.length=Integer.MAX_VALUE;
+        check(WGramEmojis.forDisplay(text,corrupted).size()==1, "overflow cannot reach renderer");
+        corrupt.length=1;
+        check(WGramEmojis.forDisplay(text,corrupted).size()==1, "split surrogate cannot reach renderer");
+        corrupt.length=2; corrupt.document_id=0;
+        check(WGramEmojis.forDisplay(text,corrupted).size()==1, "invalid document cannot reach renderer");
+        check(WGramEmojis.forSending(0,2001,text,corrupted).size()==1, "invalid document not sent");
+        check(corrupted.size()==2, "validation preserves stored entities");
+        String adjacent="😀😀";
+        TLRPC.TL_messageEntityCustomEmoji second = new TLRPC.TL_messageEntityCustomEmoji();
+        second.offset=2; second.length=2; second.document_id=43;
+        corrupt.offset=0; corrupt.document_id=42;
+        ArrayList<TLRPC.MessageEntity> pair = new ArrayList<>();pair.add(corrupt);pair.add(second);
+        ArrayList<TLRPC.MessageEntity> restored=WGramEmojis.forDisplay(adjacent,WGramEmojis.forSending(0,2001,adjacent,pair));
+        check(restored.size()==2 && restored.get(1).offset==2 && restored.get(0).length==2, "adjacent emojis retain positions");
 
         WGramConfig.setVisualPremiumEnabled(0,true);
         WGramConfig.setProfileColor(0,7);

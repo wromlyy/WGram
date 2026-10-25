@@ -369,7 +369,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final Drawable[] verifiedDrawable = new Drawable[2];
     private final Drawable[] premiumStarDrawable = new Drawable[2];
     private Long emojiStatusGiftId;
-    private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] emojiStatusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
+    private final org.telegram.ui.wgram.WGramBadgeDrawable[] emojiStatusDrawable = new org.telegram.ui.wgram.WGramBadgeDrawable[2];
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[] botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable[2];
     private final Drawable[] verifiedCheckDrawable = new Drawable[2];
     private final CrossfadeDrawable[] verifiedCrossfadeDrawable = new CrossfadeDrawable[2];
@@ -6763,9 +6763,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private void showWGramBadge(){
         org.telegram.messenger.wgram.WGramSharedProfiles.Profile data=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
-        if(data!=null && !data.badgeTitle.isEmpty())showDialog(new AlertDialog.Builder(getParentActivity())
-            .setTitle(data.badgeTitle).setMessage(data.badgeDescription+"\n\n"+getString(R.string.WGramBadgeIssuer))
-            .setPositiveButton(getString(R.string.Close),null).create());
+        if(data==null||data.badges.isEmpty()||getParentActivity()==null)return;
+        StringBuilder description=new StringBuilder();
+        for(org.telegram.messenger.wgram.WGramSharedProfiles.Badge badge:data.badges){
+            if(description.length()>0)description.append("\n\n");
+            description.append(badge.title).append("\n").append(badge.description);
+        }
+        description.append("\n\n").append(getString(R.string.WGramBadgeIssuer));
+        showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramBadges))
+            .setMessage(description).setPositiveButton(getString(R.string.Close),null).create());
     }
 
     public void showStatusSelect() {
@@ -7358,6 +7364,42 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         presentFragment(fragment);
     }
 
+    private void showWGramProfileActions() {
+        if (getParentActivity() == null || userId <= 0) return;
+        ArrayList<CharSequence> labels = new ArrayList<>();
+        ArrayList<Runnable> actions = new ArrayList<>();
+        labels.add(getString(R.string.WGramUserId) + ": " + userId);
+        actions.add(() -> AndroidUtilities.addToClipboard("" + userId));
+        if (userId == getUserConfig().getClientUserId()) {
+            labels.add(getString(R.string.WGramCustomizeProfile));
+            actions.add(() -> presentFragment(new org.telegram.ui.wgram.WGramProfileEditorActivity(currentAccount)));
+        }
+        labels.add(getString(R.string.WGramRefreshProfile));
+        actions.add(() -> {
+            if (!org.telegram.messenger.wgram.WGramService.connected(currentAccount)) {
+                presentFragment(new org.telegram.ui.wgram.WGramServiceActivity(currentAccount));
+                return;
+            }
+            org.telegram.messenger.wgram.WGramSharedProfiles profiles = org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount);
+            profiles.invalidate(userId);
+            profiles.load(userId, () -> {
+                if (getParentActivity() == null) return;
+                updateProfileData(false); updateRowsIds();
+                if (listAdapter != null) listAdapter.notifyDataSetChanged();
+            });
+        });
+        org.telegram.messenger.wgram.WGramSharedProfiles.Profile data = org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+        if (data != null && !data.badgeTitle.isEmpty()) {
+            labels.add(getString(R.string.WGramSpecialBadge)); actions.add(this::showWGramBadge);
+        }
+        if (org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())) {
+            labels.add(getString(R.string.WGramAdmin));
+            actions.add(() -> presentFragment(new org.telegram.ui.wgram.WGramAdminActivity(currentAccount, userId)));
+        }
+        showDialog(new AlertDialog.Builder(getParentActivity()).setTitle("WGram")
+            .setItems(labels.toArray(new CharSequence[0]), (dialog, which) -> actions.get(which).run()).create());
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if(position==wgramRefreshRow && wgramRefreshRow>=0){
             if(!org.telegram.messenger.wgram.WGramService.connected(currentAccount)){
@@ -7366,7 +7408,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).invalidate(userId);
             org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).load(userId,()->{updateProfileData(false);updateRowsIds();if(listAdapter!=null)listAdapter.notifyDataSetChanged();});return true;
         }
-        if(position==wgramIdRow && wgramIdRow>=0){AndroidUtilities.addToClipboard(""+userId);return true;}
+        if(position==wgramIdRow && wgramIdRow>=0){showWGramProfileActions();return true;}
         if(position==wgramCustomizeRow && wgramCustomizeRow>=0){presentFragment(new org.telegram.ui.wgram.WGramProfileEditorActivity(currentAccount));return true;}
         if(position==wgramManageRow && wgramManageRow>=0){presentFragment(new org.telegram.ui.wgram.WGramAdminActivity(currentAccount,userId));return true;}
         if(position==wgramBadgeRow && wgramBadgeRow>=0){showWGramBadge();return true;}
@@ -10710,12 +10752,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
 
-            wgramIdRow=rowCount++;
-            wgramRefreshRow=rowCount++;
-            if(userId==getUserConfig().getClientUserId())wgramCustomizeRow=rowCount++;
-            if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId()))wgramManageRow=rowCount++;
-            org.telegram.messenger.wgram.WGramSharedProfiles.Profile wgramProfile=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
-            if(wgramProfile!=null && !wgramProfile.badgeTitle.isEmpty())wgramBadgeRow=rowCount++;
+            wgramIdRow=rowCount++; // A single entry opens all WGram profile actions.
 
             if (UserObject.isUserSelf(user) && !myProfile) {
                 if (avatarBig == null && (user.photo == null || !(user.photo.photo_big instanceof TLRPC.TL_fileLocation_layer97) && !(user.photo.photo_big instanceof TLRPC.TL_fileLocationToBeDeprecated)) && (avatarsViewPager == null || avatarsViewPager.getRealCount() == 0)) {
@@ -11231,7 +11268,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private Drawable getEmojiStatusDrawable(TLRPC.EmojiStatus emojiStatus, boolean switchable, boolean animated, int a) {
         if (emojiStatusDrawable[a] == null) {
-            emojiStatusDrawable[a] = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(nameTextView[a], AndroidUtilities.dp(24), a == 0 ? AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS : AnimatedEmojiDrawable.CACHE_TYPE_KEYBOARD);
+            emojiStatusDrawable[a] = new org.telegram.ui.wgram.WGramBadgeDrawable(nameTextView[a], AndroidUtilities.dp(24), a == 0 ? AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS : AnimatedEmojiDrawable.CACHE_TYPE_KEYBOARD);
             if (fragmentViewAttached) {
                 emojiStatusDrawable[a].attach();
             }
@@ -11263,6 +11300,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else {
             emojiStatusDrawable[a].set(getPremiumCrossfadeDrawable(a), animated);
             emojiStatusDrawable[a].setParticles(false, animated);
+        }
+        if (emojiStatusDrawable[a].setBadges(currentAccount, userId > 0 ? getMessagesController().getUser(userId) : null) && nameTextView[a] != null) {
+            nameTextView[a].setText(nameTextView[a].getText(), true);
+            nameTextView[a].requestLayout();
         }
         updateEmojiStatusDrawableColor();
         return emojiStatusDrawable[a];
@@ -11688,9 +11729,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             org.telegram.messenger.wgram.WGramSharedProfiles.Profile wgramAward=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
             if(wgramAward!=null && wgramAward.badgeEmoji>0){
-                for(int index=0;index<2;index++)nameTextView[index].setRightDrawableOnClick(v->showWGramBadge());
+                for(int index=0;index<2;index++)if(nameTextView[index]!=null)nameTextView[index].setRightDrawableOnClick(v->showWGramBadge());
             }else if(userId==getUserConfig().getClientUserId() && WGramConfig.getProfileEmoji(currentAccount)>0){
-                for(int index=0;index<2;index++)nameTextView[index].setRightDrawableOnClick(v->showStatusSelect());
+                for(int index=0;index<2;index++)if(nameTextView[index]!=null)nameTextView[index].setRightDrawableOnClick(v->showStatusSelect());
             }
 
             if (userId == UserConfig.getInstance(currentAccount).clientUserId) {
@@ -13583,7 +13624,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if(position==wgramRefreshRow){
                         detailCell.setTextAndValue(getString(R.string.WGramRefreshProfile),getString(R.string.WGramSharedProfile),true);
                     }else if(position==wgramIdRow){
-                        detailCell.setTextAndValue(""+userId,getString(R.string.WGramUserId),true);
+                        detailCell.setTextAndValue("WGram",getString(R.string.WGramProfileActions),true);
                     }else if(position==wgramCustomizeRow){
                         detailCell.setTextAndValue(getString(R.string.WGramCustomizeProfile),getString(R.string.WGramBanner),true);
                     }else if(position==wgramManageRow){

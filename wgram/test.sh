@@ -21,6 +21,8 @@ java -cp "$wgram_test_output" JavaSyntaxCheck \
     TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java \
     TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java \
     TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java \
+    TMessagesProj/src/main/java/org/telegram/ui/Cells/DialogCell.java \
+    TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAvatarContainer.java \
     TMessagesProj/src/main/java/org/telegram/ui/Stories/StoriesController.java \
     TMessagesProj/src/main/java/org/telegram/ui/Components/voip/VoIPHelper.java \
     TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java \

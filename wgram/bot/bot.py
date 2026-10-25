@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ADMIN = 8226881959
 MAX_BANNER = 1_500_000
 MAX_BODY = 2_100_000
+MAX_BADGES = 3
 TOKEN = os.environ.get('BOT_TOKEN', '')
 DATA = Path(os.environ.get('WGRAM_DATA_DIR', 'data'))
 DB = DATA / 'wgram.sqlite3'
@@ -77,6 +78,22 @@ def clean_badge(data):
         'title': str(data.get('title', ''))[:40].strip(), 'description': str(data.get('description', ''))[:300].strip()}
     if active and (not result['title'] or not result['emoji']):
         raise ValueError('Badge title and emoji are required')
+    return result
+
+
+def read_badges(db, target):
+    row = db.execute('SELECT payload FROM badges WHERE uid=?', (target,)).fetchone()
+    if not row:
+        return []
+    saved = json.loads(row[0])
+    # Preserve awards made by the old single-badge service.
+    values = saved if isinstance(saved, list) else [saved]
+    result = []
+    for value in values[:MAX_BADGES]:
+        badge = clean_badge(value)
+        if badge['active']:
+            badge['id'] = digest(str(badge['emoji']) + ':' + badge['title'])
+            result.append(badge)
     return result
 
 
@@ -203,9 +220,9 @@ def dispatch(db, method, path, data, auth):
             return 404, {'error': 'NOT_FOUND'}
         row = db.execute('SELECT payload FROM profiles WHERE uid=?', (target,)).fetchone()
         profile = json.loads(row[0]) if row else clean_profile({})
-        badge = db.execute('SELECT payload FROM badges WHERE uid=?', (target,)).fetchone()
+        badges = read_badges(db, target)
         profile.update({'uid': target, 'banner': db.execute('SELECT 1 FROM banners WHERE uid=?', (target,)).fetchone() is not None,
-            'badge': json.loads(badge[0]) if badge else {'active': False}})
+            'badges': badges, 'badge': badges[0] if badges else {'active': False}})
         return 200, profile
     if method == 'POST' and path == '/v1/me/profile':
         profile = clean_profile(data)
@@ -223,7 +240,21 @@ def dispatch(db, method, path, data, auth):
             return 403, {'error': 'OWNER_ONLY'}
         target = uid(data['uid'])
         badge = clean_badge(data)
-        db.execute('INSERT OR REPLACE INTO badges VALUES(?,?)', (target, json.dumps(badge)))
+        badges = read_badges(db, target)
+        if badge['active']:
+            badge['id'] = digest(str(badge['emoji']) + ':' + badge['title'])
+            index = next((i for i, saved in enumerate(badges) if saved['id'] == badge['id']), None)
+            if index is not None:
+                badges[index] = badge
+            elif len(badges) >= MAX_BADGES:
+                return 409, {'error': 'BADGE_LIMIT'}
+            else:
+                badges.append(badge)
+        elif data.get('id'):
+            badges = [saved for saved in badges if saved['id'] != data['id']]
+        else:
+            badges = []  # Old clients used this as clear-all.
+        db.execute('INSERT OR REPLACE INTO badges VALUES(?,?)', (target, json.dumps(badges)))
         return 200, {'ok': True}
     if method == 'POST' and path == '/v1/me/delete':
         db.execute('DELETE FROM profiles WHERE uid=?', (user,))
