@@ -5,16 +5,13 @@
 
 ## Установка
 
-WGram 0.3 пока проходит проверку запуска.
-Ссылка на проверенную сборку будет добавлена после её завершения.
+[Скачать WGram 0.3 APK](https://github.com/wromlyy/WGram/releases/download/v0.3/WGram.apk)
+или открой [страницу релиза](https://github.com/wromlyy/WGram/releases/tag/v0.3).
+Пройдены сборка и 52 проверки экранов/поведения на Android 14.
 Не устанавливайте **Source code (zip)**: это исходники, а не приложение.
 Для установки нужен отдельный файл **WGram.apk**, распаковка не требуется.
 
-Готовый APK также сохраняется в `~/WGram.apk`. В Termux его можно открыть:
-
-```sh
-termux-open --view --content-type application/vnd.android.package-archive ~/WGram.apk
-```
+После скачивания открой файл **WGram.apk** в загрузках телефона.
 
 Android может попросить разрешить установку из выбранного приложения.
 Пакет `org.wgram.messenger.beta` устанавливается рядом с Telegram.
@@ -24,7 +21,7 @@ Android может попросить разрешить установку из
 ## Подключение бота вместо публичной группы
 
 1. Создай бота в @BotFather, затем загрузи
-   [WGramBot.zip](https://github.com/wromlyy/WGram/releases/download/bot-v0.1/WGramBot.zip)
+   [WGramBot.zip](https://github.com/wromlyy/WGram/releases/download/v0.3/WGramBot.zip)
    на BotHost по [инструкции](bot/README.md).
 2. Добавь `BOT_TOKEN` в переменные хостинга, включи постоянное хранилище,
    подключи HTTPS-домен к порту сервиса. Токен в APK вводить не нужно.
