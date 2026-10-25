@@ -162,7 +162,18 @@ public final class WGramUiSmoke extends Instrumentation {
                     check(strip.getIntrinsicWidth()==org.telegram.messenger.AndroidUtilities.dp(22)*3+org.telegram.messenger.AndroidUtilities.dp(2)*2,"three awards measured "+rtl);
                     check(view.getWidth()==strip.getIntrinsicWidth(),"badge view reserves complete strip "+rtl);
                     android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(width,cell.getMeasuredHeight(),android.graphics.Bitmap.Config.ARGB_8888);
-                    cell.draw(new android.graphics.Canvas(bitmap));bitmap.recycle();
+                    cell.draw(new android.graphics.Canvas(bitmap));
+                    final int[] redraws={0};
+                    android.graphics.drawable.Drawable.Callback previous=strip.getCallback();
+                    strip.setCallback(new android.graphics.drawable.Drawable.Callback(){
+                        @Override public void invalidateDrawable(android.graphics.drawable.Drawable d){redraws[0]++;}
+                        @Override public void scheduleDrawable(android.graphics.drawable.Drawable d,Runnable r,long when){}
+                        @Override public void unscheduleDrawable(android.graphics.drawable.Drawable d,Runnable r){}
+                    });
+                    android.graphics.Rect originalBounds=new android.graphics.Rect(strip.getBounds());
+                    strip.draw(new android.graphics.Canvas(bitmap));strip.setCallback(previous);bitmap.recycle();
+                    check(redraws[0]==0,"drawing stable awards does not start an endless redraw "+rtl);
+                    check(originalBounds.equals(strip.getBounds()),"drawing preserves measured strip bounds "+rtl);
                     int badgeLeft=(Integer)field(cell,"nameMuteLeft")-org.telegram.messenger.AndroidUtilities.dp(2);
                     check(badgeLeft>=0&&badgeLeft+strip.getIntrinsicWidth()<=width,"awards stay in cell "+rtl);
                     root.addView(cell,new android.widget.LinearLayout.LayoutParams(width,cell.getMeasuredHeight()));

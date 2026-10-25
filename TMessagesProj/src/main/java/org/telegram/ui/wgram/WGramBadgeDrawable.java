@@ -46,14 +46,16 @@ public final class WGramBadgeDrawable extends AnimatedEmojiDrawable.SwapAnimated
         int left = getBounds().left, originalTop = getBounds().top, right = getBounds().right, bottom = getBounds().bottom;
         int top = (originalTop + bottom) / 2 - size / 2;
         int first = left + (LocaleController.isRTL ? count * (size + gap) : 0);
-        super.setBounds(first, top, first + size, top + size);
-        super.draw(canvas);
+        // SwapDrawable reads its own bounds. Mutate/restore the rectangle directly:
+        // setBounds() here would invalidate the parent twice on every frame.
+        getBounds().set(first, top, first + size, top + size);
+        try { super.draw(canvas); }
+        finally { getBounds().set(left, originalTop, right, bottom); }
         for (int i = 0; i < count; i++) {
             int x = left + (LocaleController.isRTL ? count - i - 1 : i + 1) * (size + gap);
             extra[i].setBounds(x, top, x + size, top + size);
             extra[i].draw(canvas);
         }
-        super.setBounds(left, originalTop, right, bottom);
     }
     @Override public void setColor(Integer color) {
         super.setColor(color);
