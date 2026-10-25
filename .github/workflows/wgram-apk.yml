@@ -184,17 +184,21 @@ jobs:
           printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="2" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"'
           printf '%s\n' high > wgram-ui-results/performance.txt
           adb shell getprop ro.build.version.sdk > wgram-ui-results/android-api.txt
-          adb logcat -c
+          timeout 15 adb logcat -c
+          adb logcat -v threadtime > wgram-ui-results/logcat-live.txt 2>&1 &
           sha256sum TMessagesProj_App/build/outputs/apk/afat/debug/app.apk > wgram-ui-results/apk.sha256
           timeout 180 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
-          adb logcat -d > wgram-ui-results/logcat.txt
-          adb exec-out screencap -p > wgram-ui-results/screen.png
-          adb pull /sdcard/Android/data/org.wgram.messenger.beta/files/wgram-ui-results wgram-ui-results/screens || true
+          timeout 15 adb logcat -d > wgram-ui-results/logcat.txt || true
+          timeout 15 adb exec-out screencap -p > wgram-ui-results/screen.png || true
+          timeout 20 adb pull /sdcard/Android/data/org.wgram.messenger.beta/files/wgram-ui-results wgram-ui-results/screens || true
           grep -q 'WGRAM_SMOKE_OK' wgram-ui-results/instrumentation.txt
       - name: Collect crash log
         if: ${{ always() && inputs.run_ui_smoke && !inputs.check_java_only }}
         run: |
           mkdir -p wgram-ui-results
+          ps -eo pid,ppid,rss,comm --sort=-rss | head -20 > wgram-ui-results/host-processes.txt
+          free -m > wgram-ui-results/host-memory.txt
+          sudo dmesg | tail -100 > wgram-ui-results/host-kernel.txt || true
           timeout 10 adb logcat -d -b crash > wgram-ui-results/crash.txt || true
           timeout 10 adb shell dumpsys activity exit-info org.wgram.messenger.beta > wgram-ui-results/exit-info.txt || true
           timeout 10 adb shell dumpsys dropbox --print data_app_anr > wgram-ui-results/anr.txt || true
