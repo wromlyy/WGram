@@ -14,6 +14,10 @@ on:
         description: 'Optional expected APK SHA-256; signature and package are always verified'
         required: false
         type: string
+      upload_to_existing_draft:
+        description: 'Upload verified assets to an owner-created draft; owner publishes it separately'
+        type: boolean
+        default: false
       tag:
         description: 'Release tag'
         required: true
@@ -31,6 +35,7 @@ jobs:
       WGRAM_UI_RUN: ${{ inputs.ui_run }}
       WGRAM_APK_SHA: ${{ inputs.apk_sha256 }}
       WGRAM_RELEASE_TAG: ${{ inputs.tag }}
+      WGRAM_DRAFT_ONLY: ${{ inputs.upload_to_existing_draft }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -142,16 +147,30 @@ jobs:
           копирование профиля через Telegram и обмен между двумя аккаунтами требуют
           проверки на устройствах. Firebase выключен, фоновые уведомления могут задерживаться.
           NOTES
-          gh release create "$WGRAM_RELEASE_TAG" --target "$WGRAM_SOURCE_SHA" --title "WGram ${WGRAM_RELEASE_TAG#v}" --notes-file release-notes.md --draft --prerelease
+          if [ "$WGRAM_DRAFT_ONLY" = true ]; then
+            gh release view "$WGRAM_RELEASE_TAG" --json isDraft,tagName > draft-release.json
+            gh api "repos/$GH_REPO/git/ref/tags/$WGRAM_RELEASE_TAG" > draft-tag.json
+            python3 - <<'PYDRAFT'
+          import json, os
+          release = json.load(open('draft-release.json'))
+          tag = json.load(open('draft-tag.json'))
+          assert release['isDraft'] and release['tagName'] == os.environ['WGRAM_RELEASE_TAG']
+          assert tag['object']['type'] == 'commit' and tag['object']['sha'] == os.environ['WGRAM_SOURCE_SHA']
+          PYDRAFT
+          else
+            gh release create "$WGRAM_RELEASE_TAG" --target "$WGRAM_SOURCE_SHA" --title "WGram ${WGRAM_RELEASE_TAG#v}" --notes-file release-notes.md --draft --prerelease
+          fi
           gh release upload "$WGRAM_RELEASE_TAG" WGram.apk WGram.apk.sha256 WGramBot.zip WGramBot.zip.sha256
-          gh release edit "$WGRAM_RELEASE_TAG" --draft=false --prerelease
+          if [ "$WGRAM_DRAFT_ONLY" != true ]; then
+            gh release edit "$WGRAM_RELEASE_TAG" --draft=false --prerelease
+          fi
       - name: Verify uploaded APK digest
         run: |
           gh release view "$WGRAM_RELEASE_TAG" --json assets,isDraft > published-release.json
           python3 - <<'PY'
           import json, os, pathlib
           release = json.load(open('published-release.json'))
-          assert not release['isDraft']
+          assert release['isDraft'] == (os.environ['WGRAM_DRAFT_ONLY'] == 'true')
           for name, checksum in [('WGram.apk', os.environ['WGRAM_VERIFIED_APK_SHA']), ('WGramBot.zip', pathlib.Path('WGramBot.zip.sha256').read_text().split()[0])]:
               assets = [a for a in release['assets'] if a['name'] == name]
               assert len(assets) == 1 and assets[0]['state'] == 'uploaded'
