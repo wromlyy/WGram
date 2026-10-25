@@ -985,6 +985,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (emojiStatusView != null) {
+            emojiStatus.setBadges(currentAccount, user);
             emojiStatusView.measure(
                 MeasureSpec.makeMeasureSpec(emojiStatus.getIntrinsicWidth(), MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(dp(22), MeasureSpec.EXACTLY)
@@ -1053,9 +1054,6 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         if (currentDialogId == 0 && customDialog == null) {
             return;
         }
-        if (emojiStatusView != null) {
-            emojiStatusView.layout(0, 0, emojiStatus.getIntrinsicWidth(), dp(22));
-        }
         if (checkBox != null) {
             int paddingStart = dp(messagePaddingStart - (useForceThreeLines || SharedConfig.useThreeLinesLayout ? 29 : 27));
             int x, y;
@@ -1077,6 +1075,16 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             } catch (Exception e) {
                 FileLog.e(e);
             }
+        }
+        // buildLayout may change the number of awards. Lay out the strip only
+        // after it has selected the current user/status, in this same frame.
+        if (emojiStatusView != null) {
+            int badgeWidth = emojiStatus.getIntrinsicWidth();
+            if (emojiStatusView.getMeasuredWidth() != badgeWidth) {
+                emojiStatusView.measure(MeasureSpec.makeMeasureSpec(badgeWidth, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(dp(22), MeasureSpec.EXACTLY));
+            }
+            emojiStatusView.layout(0, 0, badgeWidth, dp(22));
         }
     }
 
@@ -1510,9 +1518,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         }
                         org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).ensure(user.id);
                         long wgramStatus = DialogObject.getEmojiStatusDocumentId(org.telegram.messenger.wgram.WGramConfig.getDisplayedStatus(currentAccount, user));
-                        drawPremium = wgramStatus != 0 || org.telegram.messenger.wgram.WGramConfig.hasLocalBadge(currentAccount, user)
+                        drawPremium = !user.scam && !user.fake && (wgramStatus != 0 || org.telegram.messenger.wgram.WGramConfig.hasLocalBadge(currentAccount, user)
                             || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(currentAccount, user)
-                            || MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
+                            || MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0);
                         if (drawPremium) {
                             Long emojiStatusId = wgramStatus == 0 ? null : wgramStatus;
                             if (emojiStatus.setBadges(currentAccount, user)) requestLayout();
