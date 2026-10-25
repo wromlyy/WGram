@@ -1,6 +1,11 @@
 name: WGram debug APK
 on:
   workflow_dispatch:
+    inputs:
+      check_java_only:
+        description: 'Compile Android Java sources without building an APK'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -73,11 +78,17 @@ jobs:
         run: |
           sh wgram/test.sh
           python3 wgram/verify_resources.py
+      - name: Compile Android Java sources
+        if: inputs.check_java_only
+        run: ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' :TMessagesProj_App:compileAfatDebugJavaWithJavac
       - name: Build debug APK
+        if: ${{ !inputs.check_java_only }}
         run: ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' :TMessagesProj_App:assembleAfatDebug
       - name: Verify APK signature
+        if: ${{ !inputs.check_java_only }}
         run: '"$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs TMessagesProj_App/build/outputs/apk/afat/debug/app.apk'
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.check_java_only }}
         with:
           name: WGram-debug
           path: TMessagesProj_App/build/outputs/apk/afat/debug/*.apk
