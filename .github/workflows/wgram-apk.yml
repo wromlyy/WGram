@@ -155,6 +155,12 @@ jobs:
           mkdir -p wgram-ui-results
           "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -cores 2 -memory 3072 > wgram-ui-results/emulator.log 2>&1 &
           timeout 60 adb wait-for-device
+          # Airplane mode does not disable the emulator's virtual Ethernet.
+          adb root
+          timeout 30 adb wait-for-device
+          adb shell iptables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell ip6tables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
           adb shell cmd connectivity airplane-mode enable
