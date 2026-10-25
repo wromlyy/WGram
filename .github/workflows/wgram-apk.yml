@@ -143,13 +143,13 @@ jobs:
         if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
         timeout-minutes: 12
         run: |
-          sdkmanager 'emulator' 'system-images;android-35;google_apis;x86_64'
+          sdkmanager 'emulator' 'system-images;android-34;google_apis;x86_64'
           sudo chmod a+rw /dev/kvm
           export ANDROID_USER_HOME="$RUNNER_TEMP/wgram-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
           export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
           mkdir -p "$ANDROID_AVD_HOME"
-          echo no | avdmanager create avd --name wgram-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_2 --force --path "$ANDROID_AVD_HOME/wgram-smoke.avd"
+          echo no | avdmanager create avd --name wgram-smoke --package 'system-images;android-34;google_apis;x86_64' --device pixel_2 --force --path "$ANDROID_AVD_HOME/wgram-smoke.avd"
           test -f "$ANDROID_AVD_HOME/wgram-smoke.ini"
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x wgram-smoke
           mkdir -p wgram-ui-results
@@ -163,6 +163,9 @@ jobs:
           adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
+          adb shell iptables -C OUTPUT ! -o lo -j REJECT || adb shell iptables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell ip6tables -C OUTPUT ! -o lo -j REJECT || adb shell ip6tables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           adb shell cmd connectivity airplane-mode enable
           adb install -r -g TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
           test_apk=$(find TMessagesProj_App/build/outputs/apk/androidTest -name '*.apk' -print -quit)
@@ -176,6 +179,9 @@ jobs:
             timeout 180 adb shell cmd package compile -m speed -f org.wgram.messenger.beta
             timeout 60 adb shell cmd package compile -m speed -f org.wgram.messenger.beta.test
           fi
+          printf '%s\n' '<map><int name="overrideDevicePerformanceClass" value="2" /></map>' | adb shell 'run-as org.wgram.messenger.beta sh -c "mkdir -p shared_prefs; cat > shared_prefs/mainconfig.xml"'
+          printf '%s\n' high > wgram-ui-results/performance.txt
+          adb shell getprop ro.build.version.sdk > wgram-ui-results/android-api.txt
           adb logcat -c
           sha256sum TMessagesProj_App/build/outputs/apk/afat/debug/app.apk > wgram-ui-results/apk.sha256
           timeout 180 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt

@@ -69,6 +69,9 @@ jobs:
           adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
+          adb shell iptables -C OUTPUT ! -o lo -j REJECT || adb shell iptables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell ip6tables -C OUTPUT ! -o lo -j REJECT || adb shell ip6tables -I OUTPUT 1 ! -o lo -j REJECT
+          adb shell iptables -S OUTPUT > wgram-ui-results/network-policy.txt
           adb shell settings put global airplane_mode_on 1
           adb shell svc wifi disable
           adb shell svc data disable
