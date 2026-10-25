@@ -73,6 +73,9 @@ jobs:
       - name: Fetch native dependencies
         if: ${{ !inputs.reuse_native }}
         run: git submodule update --init --recursive --depth=1
+      - name: Fetch Java dependency sources
+        if: inputs.reuse_native
+        run: git submodule update --init --recursive --depth=1 TMessagesProj_Modules/media TMessagesProj/lib/jlatexmath
       - uses: actions/download-artifact@v4
         if: inputs.reuse_native
         with:
