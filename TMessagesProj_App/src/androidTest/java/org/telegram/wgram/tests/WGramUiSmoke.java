@@ -37,16 +37,25 @@ public final class WGramUiSmoke extends Instrumentation {
     @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
     private void main(Runnable action) throws Throwable {
         failure = null;
-        runOnMainSync(() -> { try { action.run(); } catch (Throwable t) { failure = t; } });
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            try { action.run(); } catch (Throwable t) { failure = t; } finally { ready.countDown(); }
+        });
+        if (!ready.await(20, java.util.concurrent.TimeUnit.SECONDS)) {
+            Throwable blocked = new Throwable("Main UI thread did not respond within 20 seconds");
+            blocked.setStackTrace(android.os.Looper.getMainLooper().getThread().getStackTrace());
+            throw blocked;
+        }
         if (failure != null) throw failure;
     }
     private void open(String name, BaseFragment fragment) throws Throwable {
+        Bundle opening = new Bundle(); opening.putString("stream", "OPEN: " + name + "\n"); sendStatus(0, opening);
         main(() -> {
             fragment.setCurrentAccount(0);
             if (!activity.presentFragment(fragment, false, true)) throw new AssertionError("Cannot open " + name);
         });
         SystemClock.sleep(1200);
-        waitForIdleSync();
+        // Animated profiles keep posting frames; verify via a bounded main-thread callback.
         main(() -> {
             if (fragment.getFragmentView() == null) throw new AssertionError("No view: " + name);
         });
