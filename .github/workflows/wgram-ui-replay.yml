@@ -52,7 +52,7 @@ jobs:
           test -f "$ANDROID_AVD_HOME/wgram-smoke.ini"
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x wgram-smoke
           mkdir -p wgram-ui-results
-          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 > wgram-ui-results/emulator.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -cores 2 -memory 3072 > wgram-ui-results/emulator.log 2>&1 &
           timeout 60 adb wait-for-device
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
@@ -62,6 +62,15 @@ jobs:
           adb install -r -g app/app.apk
           test_apk=$(find test -name '*.apk' -print -quit)
           adb install -r "$test_apk"
+          # Finish first-boot work and compile the large debug APK before instrumented startup.
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+          if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 24 ]; then
+            timeout 180 adb shell cmd package compile -m speed -f org.wgram.messenger.beta
+            timeout 60 adb shell cmd package compile -m speed -f org.wgram.messenger.beta.test
+          fi
           adb logcat -c
           sha256sum app/app.apk > wgram-ui-results/apk.sha256
           timeout 240 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
@@ -74,6 +83,11 @@ jobs:
         run: |
           mkdir -p wgram-ui-results
           timeout 10 adb logcat -d -b crash > wgram-ui-results/crash.txt || true
+          timeout 10 adb shell dumpsys activity exit-info org.wgram.messenger.beta > wgram-ui-results/exit-info.txt || true
+          timeout 10 adb shell dumpsys dropbox --print data_app_anr > wgram-ui-results/anr.txt || true
+          timeout 10 adb root || true
+          timeout 10 adb wait-for-device || true
+          timeout 15 adb pull /data/anr wgram-ui-results/anr-traces || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
