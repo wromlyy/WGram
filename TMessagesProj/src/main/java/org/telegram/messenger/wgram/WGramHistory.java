@@ -58,7 +58,7 @@ public final class WGramHistory {
                     boolean eligible = WGramHistoryPolicy.canKeep(dialog, m.id, m.message,
                         DialogObject.isEncryptedDialog(dialog) || m instanceof TLRPC.TL_message_secret,
                         m.ttl_period, m.media == null ? 0 : m.media.ttl_seconds,
-                        m.noforwards || (chat != null && chat.noforwards), MessageObject.isEphemeralAndNotWelcome(m));
+                        m.noforwards || (dialog < 0 && chat == null) || (chat != null && chat.noforwards), MessageObject.isEphemeralAndNotWelcome(m));
                     if (!eligible) {
                         // A server edit may turn a formerly ordinary message into expiring content.
                         db.delete("live", "dialog=? AND mid=?", new String[]{""+dialog,""+m.id});

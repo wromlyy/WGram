@@ -136,10 +136,12 @@ android {
     ndkVersion "27.2.12479018"
 
 
-    externalNativeBuild {
-        cmake {
-            path 'jni/CMakeLists.txt'
+    if (!providers.gradleProperty('wgramPrebuiltNative').getOrElse('false').toBoolean()) {
+        externalNativeBuild {
+            cmake { path 'jni/CMakeLists.txt' }
         }
+    } else {
+        sourceSets.main.jniLibs.srcDir rootProject.file('wgram/native-cache')
     }
 
     lintOptions {

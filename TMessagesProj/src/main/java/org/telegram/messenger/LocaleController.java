@@ -4446,6 +4446,7 @@ public class LocaleController {
 
     @Nullable
     private String getStringV2(String key, @StringRes int stringRes, String fallback) {
+        if (stringRes == R.string.TelegramVersion || "TelegramVersion".equals(key)) return "WGram 0.2 · %1$s";
         final Context context = ApplicationLoader.applicationContext;
         String value;
 

@@ -95,6 +95,7 @@ public final class WGramSharedProfiles {
             TLRPC.TL_channels_joinChannel req=new TLRPC.TL_channels_joinChannel();req.channel=controller().getInputChannel(id);
             ConnectionsManager.getInstance(account).sendRequest(req,(res,err)->AndroidUtilities.runOnUIThread(()->{
                 if(err!=null && !"USER_ALREADY_PARTICIPANT".equals(err.text)){callback.done(0,err.text);return;}
+                if(res instanceof TLRPC.TL_chatInviteJoinResultOk)controller().processUpdates(((TLRPC.TL_chatInviteJoinResultOk)res).updates,false);
                 callback.done(id,null);
             }));
         });
@@ -139,7 +140,7 @@ public final class WGramSharedProfiles {
     private interface Messages {void done(ArrayList<TLRPC.Message> messages);}
     private void search(long id,long sender,String query,Messages callback){
         TLRPC.TL_messages_search req=new TLRPC.TL_messages_search();req.peer=controller().getInputPeer(-id);
-        req.from_id=controller().getInputPeer(sender);req.q=query;req.filter=new TLRPC.TL_inputMessagesFilterEmpty();req.limit=100;
+        req.from_id=controller().getUser(sender)==null?null:controller().getInputPeer(sender);req.q=query;req.filter=new TLRPC.TL_inputMessagesFilterEmpty();req.limit=100;
         ConnectionsManager.getInstance(account).sendRequest(req,(res,error)->AndroidUtilities.runOnUIThread(()->{
             if(res instanceof TLRPC.messages_Messages){
                 TLRPC.messages_Messages data=(TLRPC.messages_Messages)res;controller().putUsers(data.users,false);controller().putChats(data.chats,false);callback.done(data.messages);

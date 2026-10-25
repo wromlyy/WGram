@@ -22,3 +22,6 @@ wgram.properties
 **/src/standalone/google-services.json
 wgram/.tools/
 __pycache__/
+
+wgram/native-cache/
+wgram/native-source/

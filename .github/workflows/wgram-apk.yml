@@ -7,8 +7,13 @@ on:
         description: 'Compile Android Java sources without building an APK'
         type: boolean
         default: false
+      reuse_native:
+        description: 'Reuse verified native code from the unchanged pinned source tree'
+        type: boolean
+        default: false
 permissions:
   contents: read
+  actions: read
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -66,7 +71,20 @@ jobs:
               print('No persistent signing key configured; Android will generate a temporary debug key.')
           PYSIGN
       - name: Fetch native dependencies
+        if: ${{ !inputs.reuse_native }}
         run: git submodule update --init --recursive --depth=1
+      - uses: actions/download-artifact@v4
+        if: inputs.reuse_native
+        with:
+          name: WGram-debug
+          path: wgram/native-source
+          run-id: 40206752484
+          github-token: ${{ github.token }}
+      - name: Verify native library source and APK
+        if: inputs.reuse_native
+        run: |
+          python3 wgram/reuse_native.py wgram/native-source/app.apk
+          echo 'ORG_GRADLE_PROJECT_wgramPrebuiltNative=true' >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -10,7 +10,7 @@ names = [item.get('name') for item in strings]
 assert len(names) == len(set(names)), 'Duplicate default resource names'
 available = set(names)
 required = set()
-for source in (root / 'TMessagesProj/src/main/java/org/telegram/ui').rglob('*.java'):
+for source in (root / 'TMessagesProj/src/main/java/org/telegram').rglob('*.java'):
     required.update(re.findall(r'R\.string\.(WGram\w+)', source.read_text()))
 assert required <= available, f'Missing WGram strings: {required - available}'
 xml_paths = list(res.rglob('wgram_*.xml'))
