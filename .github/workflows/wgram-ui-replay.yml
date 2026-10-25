@@ -44,10 +44,16 @@ jobs:
           rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
           sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"
           sudo chmod a+rw /dev/kvm
-          echo no | avdmanager create avd --name wgram-smoke --package "system-images;android-$WGRAM_TEST_API;google_apis;x86_64" --device pixel_2
+          export ANDROID_USER_HOME="$RUNNER_TEMP/wgram-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --name wgram-smoke --package "system-images;android-$WGRAM_TEST_API;google_apis;x86_64" --device pixel_2 --force --path "$ANDROID_AVD_HOME/wgram-smoke.avd"
+          test -f "$ANDROID_AVD_HOME/wgram-smoke.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x wgram-smoke
           mkdir -p wgram-ui-results
           "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 > wgram-ui-results/emulator.log 2>&1 &
-          adb wait-for-device
+          timeout 60 adb wait-for-device
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
           adb shell settings put global airplane_mode_on 1
@@ -57,6 +63,7 @@ jobs:
           test_apk=$(find test -name '*.apk' -print -quit)
           adb install -r "$test_apk"
           adb logcat -c
+          sha256sum app/app.apk > wgram-ui-results/apk.sha256
           timeout 240 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
           adb logcat -d > wgram-ui-results/logcat.txt
           adb exec-out screencap -p > wgram-ui-results/screen.png
