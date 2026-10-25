@@ -53,6 +53,8 @@
    Постоянный ключ подписи и публикацию нужно настроить перед выпуском.
    В GitHub Actions можно задать `WGRAM_DEBUG_KEYSTORE_BASE64` — содержимое
    своего debug.keystore в Base64 (JKS, alias androiddebugkey, пароли android).
+   Workflow передаёт путь к восстановленному ключу через
+   `WGRAM_DEBUG_KEYSTORE_PATH`; Gradle выбирает именно этот файл.
    Тогда debug-сборки имеют одну подпись и устанавливаются как обновления.
    Без этого секрета ключи разных runner могут отличаться.
 
@@ -63,17 +65,19 @@
 
 ## GitHub Actions
 
-В подготовленном репозитории есть два workflow:
+В репозитории есть workflow:
 
 - **WGram checks** — тесты логики, Java-синтаксис и XML, без SDK и ключей.
-- **WGram debug APK** — ручной запуск сборки APK.
+- **WGram debug APK** — ручной запуск сборки APK или проверки Android Java.
+- **WGram sign existing APK** — подпись уже собранного артефакта постоянным
+  ключом без повторной компиляции. Введите номер исходного успешного запуска.
 
 Для второго обязательны только repository secrets `WGRAM_API_ID`
 и `WGRAM_API_HASH`. `WGRAM_FIREBASE_JSON` необязателен: без него сборка
 идёт с отключённым FCM, с ним проверяется package `org.wgram.messenger.beta`
 и включается получение Firebase-токена. После успешной сборки APK будет
-доступен как artifact `WGram-debug`. Workflow подготовлен, удалённо
-не запускался. Ошибки Android-компиляции и native-зависимостей пока возможны.
+доступен как artifact `WGram-debug`. Полная сборка и отдельная проверка Android Java успешно выполнены
+25 октября 2026 года. [Результаты и готовый APK](VALIDATION.md).
 
 ## Что проверяют локальные тесты
 
