@@ -1,0 +1,74 @@
+name: WGram APK UI replay
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: 'Build run containing the app and instrumentation APKs'
+        required: true
+        type: string
+      api_level:
+        description: 'Android API level'
+        required: true
+        type: choice
+        default: '35'
+        options: ['23', '29', '35']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: WGram-debug
+          path: app
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: WGram-ui-test-apk
+          path: test
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ github.token }}
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Run offline Android UI checks
+        timeout-minutes: 14
+        env:
+          WGRAM_TEST_API: ${{ inputs.api_level }}
+        run: |
+          rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
+          sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"
+          sudo chmod a+rw /dev/kvm
+          echo no | avdmanager create avd --name wgram-smoke --package "system-images;android-$WGRAM_TEST_API;google_apis;x86_64" --device pixel_2
+          mkdir -p wgram-ui-results
+          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 > wgram-ui-results/emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell settings put global airplane_mode_on 1
+          adb shell svc wifi disable
+          adb shell svc data disable
+          adb install -r -g app/app.apk
+          test_apk=$(find test -name '*.apk' -print -quit)
+          adb install -r "$test_apk"
+          adb logcat -c
+          timeout 240 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
+          adb logcat -d > wgram-ui-results/logcat.txt
+          adb exec-out screencap -p > wgram-ui-results/screen.png
+          adb pull /sdcard/Android/data/org.wgram.messenger.beta/files/wgram-ui-results wgram-ui-results/screens || true
+          grep -q 'WGRAM_SMOKE_OK' wgram-ui-results/instrumentation.txt
+      - name: Collect crash log
+        if: always()
+        run: |
+          mkdir -p wgram-ui-results
+          timeout 10 adb logcat -d -b crash > wgram-ui-results/crash.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: WGram-ui-api-${{ inputs.api_level }}
+          path: wgram-ui-results
