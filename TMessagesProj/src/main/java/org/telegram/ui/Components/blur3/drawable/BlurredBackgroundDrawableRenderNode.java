@@ -123,7 +123,7 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
                 0, 0, boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height(),
                 boundProps.shaderRadii[0], boundProps.shaderRadii[2], boundProps.shaderRadii[4], boundProps.shaderRadii[6],
                 thickness,
-                boundProps.liquidIntensity,
+                boundProps.liquidIntensity * org.telegram.messenger.wgram.WGramConfig.getGlassRefraction() / 75f,
                 boundProps.liquidIndex,
                 backgroundColor
             );
@@ -196,6 +196,7 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         canvas.translate(boundProps.boundsWithPadding.left, boundProps.boundsWithPadding.top);
         canvas.drawRenderNode(renderNode);
         canvas.restore();
+        drawWGramOverlay(canvas);
     }
 
     public void invalidateDisplayList() {

@@ -74,6 +74,17 @@ public class VoIPHelper {
 	private static final int VOIP_SUPPORT_ID = 4244000;
 
 	public static void startCall(TLRPC.User user, boolean videoCall, boolean canVideoCall, final Activity activity, TLRPC.UserFull userFull, AccountInstance accountInstance) {
+        final int wgramAccount = accountInstance == null ? UserConfig.selectedAccount : accountInstance.getCurrentAccount();
+        if (activity == null || user == null) return;
+        if (org.telegram.messenger.wgram.WGramConfig.confirmCalls(wgramAccount)) {
+            new AlertDialog.Builder(activity).setTitle("WGram")
+                .setMessage(LocaleController.getString(R.string.WGramCallQuestion) + " " + org.telegram.messenger.UserObject.getUserName(user) + "?")
+                .setPositiveButton(LocaleController.getString(R.string.Call), (dialog, which) -> startCallConfirmed(user, videoCall, canVideoCall, activity, userFull, accountInstance))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).show();
+        } else startCallConfirmed(user, videoCall, canVideoCall, activity, userFull, accountInstance);
+    }
+
+    private static void startCallConfirmed(TLRPC.User user, boolean videoCall, boolean canVideoCall, final Activity activity, TLRPC.UserFull userFull, AccountInstance accountInstance) {
 		if (accountInstance == null ? MessagesController.getInstance(UserConfig.selectedAccount).isFrozen() : accountInstance.getMessagesController().isFrozen()) {
 			AccountFrozenAlert.show(accountInstance == null ? UserConfig.selectedAccount : accountInstance.getCurrentAccount());
 			return;

@@ -85,7 +85,9 @@ public final class WGramCoreTest {
         UserConfig.getInstance(0).userId=1001;
         check(WGramConfig.getProfileColor(0)==7, "original user preferences restored");
         WGramConfig.setVisualPremiumEnabled(0,false);
-        check(WGramConfig.getDisplayedStatus(0,self)==self.emoji_status, "disabling cosmetics restores native status");
+        check(((TLRPC.TL_emojiStatus)WGramConfig.getDisplayedStatus(0,self)).document_id==123456, "emoji status works independently of visual Premium");
+        WGramConfig.setProfileEmoji(0,0);
+        check(WGramConfig.getDisplayedStatus(0,self)==self.emoji_status, "clearing local status restores native status");
         WGramConfig.setGlassOpacity(1000); check(WGramConfig.getGlassOpacity()==95, "opacity upper bound");
         WGramConfig.setGlassOpacity(-100); check(WGramConfig.getGlassOpacity()==60, "opacity lower bound");
         WGramConfig.setGlassEnabled(true); WGramConfig.setGlassMode(WGramConfig.GLASS_AUTO);

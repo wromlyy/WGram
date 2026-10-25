@@ -18517,6 +18517,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else {
             timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         }
+        if (org.telegram.messenger.wgram.WGramConfig.showSeconds(currentAccount) && messageObject.messageOwner.date > 0 && messageObject.messageOwner.date < 0x7FFFFFFE) {
+            timeString += ":" + String.format(java.util.Locale.ROOT, "%02d", messageObject.messageOwner.date % 60);
+        }
         if (currentMessageObject.messageOwner.video_processing_pending) {
             timeString = formatString(R.string.ScheduledTimeApprox, timeString);
         }

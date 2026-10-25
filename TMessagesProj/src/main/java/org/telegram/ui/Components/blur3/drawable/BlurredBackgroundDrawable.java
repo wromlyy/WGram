@@ -228,9 +228,10 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
             backgroundColor = ColorUtils.setAlphaComponent(backgroundColor,
                 Math.min(254, Color.alpha(backgroundColor) * WGramConfig.getGlassOpacity() / 75));
         }
-        shadowColor = colorProvider.getShadowColor();
-        strokeColorTop = colorProvider.getStrokeColorTop();
-        strokeColorBottom = colorProvider.getStrokeColorBottom();
+        if (WGramConfig.isGlassEnabled()) backgroundColor = WGramGlassPainter.tint(backgroundColor);
+        shadowColor = WGramConfig.hasGlassShadow() ? colorProvider.getShadowColor() : 0;
+        strokeColorTop = WGramConfig.hasGlassRim() ? colorProvider.getStrokeColorTop() : 0;
+        strokeColorBottom = WGramConfig.hasGlassRim() ? colorProvider.getStrokeColorBottom() : 0;
     }
 
 
@@ -578,6 +579,11 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     /* Universal */
 
     private final WGramGlassPainter wgramGlassPainter = new WGramGlassPainter();
+
+    protected final void drawWGramOverlay(Canvas canvas) {
+        if (colorProvider != null) wgramGlassPainter.drawOverlay(canvas, boundProps.path, boundProps.boundsWithPadding,
+            getAlpha(), Theme.getColor(Theme.key_windowBackgroundWhite));
+    }
 
     protected final boolean drawWGramFallback(Canvas canvas) {
         if (colorProvider == null) return false;

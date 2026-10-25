@@ -30057,6 +30057,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onResume() {
         super.onResume();
+        AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.wgram.WGramNotices.showPending(currentAccount), 350);
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {

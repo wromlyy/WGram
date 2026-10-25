@@ -559,7 +559,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         subtitleView.setText(sb);
 
-        versionView.setText("WGram 0.1 · " + getVersionName());
+        versionView.setText("WGram 0.2 · " + getVersionName());
     }
 
 

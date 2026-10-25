@@ -17,7 +17,7 @@ public final class WGramConfig {
     private static SharedPreferences global() {
         return ApplicationLoader.applicationContext.getSharedPreferences("wgram", Context.MODE_PRIVATE);
     }
-    private static SharedPreferences account(int account) {
+    public static SharedPreferences account(int account) {
         // Slots can be reused after logout: isolate preferences by actual Telegram user ID.
         long userId = UserConfig.getInstance(account).getClientUserId();
         return ApplicationLoader.applicationContext.getSharedPreferences("wgram_user_" + userId, Context.MODE_PRIVATE);
@@ -39,6 +39,37 @@ public final class WGramConfig {
     public static void setGlassOpacity(int percent) {
         global().edit().putInt("glass_opacity", Math.max(60, Math.min(95, percent))).apply();
     }
+    public static int getGlassTint() { return clamp(global().getInt("glass_tint", 0), 0, 4); }
+    public static void setGlassTint(int value) { global().edit().putInt("glass_tint", clamp(value, 0, 4)).apply(); }
+    public static int getGlassHighlight() { return clamp(global().getInt("glass_highlight", 65), 0, 100); }
+    public static void setGlassHighlight(int value) { global().edit().putInt("glass_highlight", clamp(value, 0, 100)).apply(); }
+    public static int getGlassRefraction() { return clamp(global().getInt("glass_refraction", 75), 0, 100); }
+    public static void setGlassRefraction(int value) { global().edit().putInt("glass_refraction", clamp(value, 0, 100)).apply(); }
+    public static boolean hasGlassRim() { return global().getBoolean("glass_rim", true); }
+    public static void setGlassRim(boolean value) { global().edit().putBoolean("glass_rim", value).apply(); }
+    public static boolean hasGlassShadow() { return global().getBoolean("glass_shadow", true); }
+    public static void setGlassShadow(boolean value) { global().edit().putBoolean("glass_shadow", value).apply(); }
+    public static void resetGlass() {
+        setGlassEnabled(true); setGlassMode(GLASS_AUTO); setGlassOpacity(75);
+        setGlassTint(0); setGlassHighlight(65); setGlassRefraction(75); setGlassRim(true); setGlassShadow(true);
+    }
+    private static int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
+    public static boolean isHistoryEnabled(int a) { return account(a).getBoolean("history", false); }
+    public static void setHistoryEnabled(int a, boolean enabled) { account(a).edit().putBoolean("history", enabled).apply(); }
+    public static int getHistoryDays(int a) { return account(a).getInt("history_days", 7) == 30 ? 30 : 7; }
+    public static void setHistoryDays(int a, int days) { account(a).edit().putInt("history_days", days == 30 ? 30 : 7).apply(); }
+    public static boolean hideRead(int a) { return account(a).getBoolean("ghost_read", false); }
+    public static void setHideRead(int a, boolean enabled) { account(a).edit().putBoolean("ghost_read", enabled).apply(); }
+    public static boolean hideTyping(int a) { return account(a).getBoolean("ghost_typing", false); }
+    public static void setHideTyping(int a, boolean enabled) { account(a).edit().putBoolean("ghost_typing", enabled).apply(); }
+    public static boolean hideOnline(int a) { return account(a).getBoolean("ghost_online", false); }
+    public static void setHideOnline(int a, boolean enabled) { account(a).edit().putBoolean("ghost_online", enabled).apply(); }
+    public static boolean hideStories(int a) { return account(a).getBoolean("ghost_stories", false); }
+    public static void setHideStories(int a, boolean enabled) { account(a).edit().putBoolean("ghost_stories", enabled).apply(); }
+    public static boolean confirmCalls(int a) { return account(a).getBoolean("confirm_calls", true); }
+    public static void setConfirmCalls(int a, boolean enabled) { account(a).edit().putBoolean("confirm_calls", enabled).apply(); }
+    public static boolean showSeconds(int a) { return account(a).getBoolean("time_seconds", false); }
+    public static void setShowSeconds(int a, boolean enabled) { account(a).edit().putBoolean("time_seconds", enabled).apply(); }
     public static boolean areEmojisEnabled(int account) { return account(account).getBoolean("shared_emojis", true); }
     public static void setEmojisEnabled(int account, boolean enabled) {
         account(account).edit().putBoolean("shared_emojis", enabled).apply();
@@ -61,7 +92,11 @@ public final class WGramConfig {
         account(account).edit().putLong("profile_emoji", Math.max(0, documentId)).apply();
     }
     public static TLRPC.EmojiStatus getDisplayedStatus(int account, TLRPC.User user) {
-        if (hasLocalBadge(account, user) && getProfileEmoji(account) != 0) {
+        WGramSharedProfiles.Profile shared=user==null?null:WGramSharedProfiles.get(account).peek(user.id);
+        long sharedStatus=shared==null?0:shared.badgeEmoji>0?shared.badgeEmoji:
+            user.id!=UserConfig.getInstance(account).getClientUserId()?shared.emoji:0;
+        if(sharedStatus>0){TLRPC.TL_emojiStatus status=new TLRPC.TL_emojiStatus();status.document_id=sharedStatus;return status;}
+        if (user != null && user.id == UserConfig.getInstance(account).getClientUserId() && getProfileEmoji(account) != 0) {
             TLRPC.TL_emojiStatus status = new TLRPC.TL_emojiStatus();
             status.document_id = getProfileEmoji(account);
             return status;

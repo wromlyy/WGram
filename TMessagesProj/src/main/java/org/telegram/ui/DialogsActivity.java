@@ -7020,6 +7020,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.wgram.WGramNotices.showPending(currentAccount), 350);
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }

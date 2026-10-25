@@ -1444,6 +1444,10 @@ public class LocaleController {
     }
 
     private String getStringInternal(String key, String fallback, int res) {
+        if (res == R.string.AppName || res == R.string.Page1Title || "AppName".equals(key) || "Page1Title".equals(key)) return "WGram";
+        if (res == R.string.AppNameBeta || "AppNameBeta".equals(key)) return "WGram Dev";
+        if (res == R.string.TelegramVersion || "TelegramVersion".equals(key)) return "WGram 0.2 · %1$s";
+        if (res == R.string.NoChats || "NoChats".equals(key)) return getStringInternal(null, null, R.string.WGramWelcome);
         final String value = getStringV2(key, res, fallback);
         if (value == null) {
             return "LOC_ERR:" + key;

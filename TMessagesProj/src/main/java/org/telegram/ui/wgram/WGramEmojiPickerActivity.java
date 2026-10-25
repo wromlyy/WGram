@@ -16,6 +16,9 @@ import org.telegram.ui.Components.LayoutHelper;
 
 public final class WGramEmojiPickerActivity extends BaseFragment {
     private EmojiView emojiView;
+    public interface Selection { void chosen(long id); }
+    private Selection selection;
+    public WGramEmojiPickerActivity(int account, Selection selection) { setCurrentAccount(account); this.selection=selection; }
 
     public WGramEmojiPickerActivity(int account) { setCurrentAccount(account); }
 
@@ -36,7 +39,7 @@ public final class WGramEmojiPickerActivity extends BaseFragment {
                 Toast.makeText(context, getString(R.string.WGramChooseEmoji), Toast.LENGTH_SHORT).show();
             }
             @Override public void onCustomEmojiSelected(long documentId, TLRPC.Document document, String emoticon, boolean recent) {
-                WGramConfig.setProfileEmoji(currentAccount, documentId);
+                if(selection!=null)selection.chosen(documentId);else WGramConfig.setProfileEmoji(currentAccount, documentId);
                 finishFragment();
             }
         });

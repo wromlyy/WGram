@@ -1279,6 +1279,7 @@ public class StoriesController {
     }
 
     public boolean markStoryAsRead(TL_stories.PeerStories userStories, TL_stories.StoryItem storyItem, boolean profile) {
+        if (org.telegram.messenger.wgram.WGramConfig.hideStories(currentAccount)) return false;
         if (storyItem == null || userStories == null) {
             return false;
         }
@@ -2752,6 +2753,7 @@ public class StoriesController {
 
         @Override
         protected boolean markAsRead(int storyId) {
+            if (org.telegram.messenger.wgram.WGramConfig.hideStories(currentAccount)) return false;
             return false;
         }
 
@@ -3066,6 +3068,7 @@ public class StoriesController {
 
         @Override
         protected boolean markAsRead(int storyId) {
+            if (org.telegram.messenger.wgram.WGramConfig.hideStories(currentAccount)) return false;
             return false;
         }
 
@@ -3230,6 +3233,7 @@ public class StoriesController {
 
         @Override
         protected boolean markAsRead(int storyId) {
+            if (org.telegram.messenger.wgram.WGramConfig.hideStories(currentAccount)) return false;
             return false;
         }
 
@@ -3720,6 +3724,7 @@ public class StoriesController {
         }
 
         protected boolean markAsRead(int storyId) {
+            if (org.telegram.messenger.wgram.WGramConfig.hideStories(currentAccount)) return false;
             if (seenStories.contains(storyId)) return false;
             seenStories.add(storyId);
             saveCache();

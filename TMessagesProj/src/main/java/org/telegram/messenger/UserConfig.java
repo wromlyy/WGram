@@ -459,6 +459,11 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        final long wgramUser = getClientUserId();
+        org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).clear();
+        org.telegram.messenger.wgram.WGramBanners.file(wgramUser).delete();
+        org.telegram.messenger.wgram.WGramConfig.account(currentAccount).edit().clear().apply();
+        getMessagesStorage().getStorageQueue().postRunnable(() -> org.telegram.messenger.wgram.WGramHistory.clear(wgramUser));
         getPreferences().edit().clear().apply();
 
         sharingMyLocationUntil = 0;

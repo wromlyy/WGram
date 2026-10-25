@@ -17,6 +17,9 @@ public class BlurredBackgroundDrawableSource extends BlurredBackgroundDrawable {
     @Override
     public void draw(@NonNull Canvas canvas) {
         drawSource(canvas, source);
+        if (org.telegram.messenger.wgram.WGramConfig.isGlassEnabled()
+            && !org.telegram.messenger.wgram.WGramConfig.useLightGlass()
+            && !org.telegram.messenger.LiteMode.isPowerSaverApplied()) drawWGramOverlay(canvas);
     }
 
     @Override

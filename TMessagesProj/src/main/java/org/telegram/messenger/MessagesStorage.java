@@ -11861,6 +11861,10 @@ public class MessagesStorage extends BaseController {
     }
 
     private void putMessagesInternal(ArrayList<TLRPC.Message> messages, boolean withTransaction, boolean doNotUpdateDialogDate, int downloadMask, boolean ifNoLastMessage, int mode, long threadMessageId) {
+        if (mode == ChatActivity.MODE_DEFAULT) {
+            org.telegram.messenger.wgram.WGramNotices.receive(currentAccount, messages);
+            org.telegram.messenger.wgram.WGramHistory.observe(currentAccount, messages);
+        }
         if (messages != null) {
             ArrayList<TL_ephemeral.EphemeralMessage> ephemeralMessages = null;
             for (TLRPC.Message message : messages) {
@@ -14515,6 +14519,7 @@ public class MessagesStorage extends BaseController {
     }
 
     private ArrayList<Long> markMessagesAsDeletedInternal(long dialogId, ArrayList<Integer> messages, boolean deleteFiles, int mode, int threadMessageId) {
+        if (mode == ChatActivity.MODE_DEFAULT) org.telegram.messenger.wgram.WGramHistory.deleted(currentAccount, dialogId, messages, 0);
         SQLiteCursor cursor = null;
         SQLitePreparedStatement state = null;
         try {
@@ -15325,6 +15330,7 @@ public class MessagesStorage extends BaseController {
     }
 
     private ArrayList<Long> markMessagesAsDeletedInternal(long channelId, int mid, boolean deleteFiles) {
+        org.telegram.messenger.wgram.WGramHistory.deleted(currentAccount, -channelId, null, mid);
         SQLiteCursor cursor = null;
         SQLitePreparedStatement state = null;
         try {
@@ -16078,6 +16084,10 @@ public class MessagesStorage extends BaseController {
     // put messages in data base while load history
     public void putMessages(TLRPC.messages_Messages messages, long dialogId, int load_type, int max_id, boolean createDialog, int mode, long threadMessageId) {
         storageQueue.postRunnable(() -> {
+            if (mode == ChatActivity.MODE_DEFAULT) {
+                org.telegram.messenger.wgram.WGramNotices.receive(currentAccount, messages.messages);
+                org.telegram.messenger.wgram.WGramHistory.observe(currentAccount, messages.messages);
+            }
             SQLitePreparedStatement state_messages = null;
             SQLitePreparedStatement state_messages_topics = null;
             SQLitePreparedStatement state_media = null;

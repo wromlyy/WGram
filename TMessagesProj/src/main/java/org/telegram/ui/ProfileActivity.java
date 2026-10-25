@@ -619,6 +619,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int setAvatarSectionRow;
     private int channelRow;
     private int channelDividerRow;
+    private int wgramIdRow=-1, wgramCustomizeRow=-1, wgramManageRow=-1, wgramBadgeRow=-1;
     private int numberSectionRow;
     private int numberRow;
     public int birthdayRow;
@@ -1221,6 +1222,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private class TopView extends FrameLayout {
+        private final ImageReceiver wgramBanner=new ImageReceiver(this);
+        private String wgramBannerKey="";
+        private boolean wgramHasBanner;
+        void setWGramBanner(java.io.File local,TLRPC.Photo remote){
+            String key=local!=null?local.getPath()+local.lastModified():remote!=null?"photo:"+remote.id:"";
+            if(key.equals(wgramBannerKey))return;
+            wgramBannerKey=key;wgramHasBanner=!key.isEmpty();
+            if(local!=null)wgramBanner.setImage(local.getPath(),"1280_720",null,null,0);
+            else if(remote!=null)wgramBanner.setImage(ImageLocation.getForPhoto(FileLoader.getClosestPhotoSizeWithSize(remote.sizes,1280),remote),"1280_720",null,null,remote,0);
+            else wgramBanner.setImageBitmap((android.graphics.Bitmap)null);
+            invalidate();
+        }
 
         private int currentColor;
         private Paint paint = new Paint();
@@ -1295,13 +1308,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         @Override
         protected void onAttachedToWindow() {
             super.onAttachedToWindow();
-            emoji.attach();
+            emoji.attach();wgramBanner.onAttachedToWindow();
         }
 
         @Override
         protected void onDetachedFromWindow() {
             super.onDetachedFromWindow();
-            emoji.detach();
+            emoji.detach();wgramBanner.onDetachedFromWindow();
         }
 
         public final AnimatedFloat emojiLoadedT = new AnimatedFloat(this, 0, 440, CubicBezierInterpolator.EASE_OUT_QUINT);
@@ -1376,6 +1389,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (progressToGradient > 0) {
                     backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
                     canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
+                }
+                if(wgramHasBanner){
+                    canvas.save();canvas.clipRect(0,0,getMeasuredWidth(),y1);
+                    wgramBanner.setImageCoords(0,0,getMeasuredWidth(),Math.max(y1,dp(180)));wgramBanner.draw(canvas);
+                    paint.setColor(0x44000000);canvas.drawRect(0,0,getMeasuredWidth(),y1,paint);canvas.restore();
                 }
                 if (hasEmoji) {
                     final float loadedScale = emojiLoadedT.set(isEmojiLoaded());
@@ -6744,7 +6762,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private SelectAnimatedEmojiDialog.SelectAnimatedEmojiDialogWindow selectAnimatedEmojiDialog;
 
+    private void showWGramBadge(){
+        org.telegram.messenger.wgram.WGramSharedProfiles.Profile data=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+        if(data!=null && !data.badgeTitle.isEmpty())showDialog(new AlertDialog.Builder(getParentActivity())
+            .setTitle(data.badgeTitle).setMessage(data.badgeDescription+"\n\n"+getString(R.string.WGramBadgeIssuer))
+            .setPositiveButton(getString(R.string.Close),null).create());
+    }
+
     public void showStatusSelect() {
+        org.telegram.messenger.wgram.WGramSharedProfiles.Profile wgramBadge=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+        if(wgramBadge!=null && wgramBadge.badgeEmoji>0){showWGramBadge();return;}
         if (userId == getUserConfig().getClientUserId() && WGramConfig.isVisualPremiumEnabled(currentAccount)) {
             presentFragment(new WGramSettingsActivity(currentAccount));
             return;
@@ -7333,6 +7360,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
+        if(position==wgramIdRow && wgramIdRow>=0){AndroidUtilities.addToClipboard(""+userId);return true;}
+        if(position==wgramCustomizeRow && wgramCustomizeRow>=0){presentFragment(new org.telegram.ui.wgram.WGramProfileEditorActivity(currentAccount));return true;}
+        if(position==wgramManageRow && wgramManageRow>=0){presentFragment(new org.telegram.ui.wgram.WGramAdminActivity(currentAccount,userId));return true;}
+        if(position==wgramBadgeRow && wgramBadgeRow>=0){showWGramBadge();return true;}
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
             final TLRPC.TL_username usernameObj;
@@ -9603,6 +9634,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if(userId>0)org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).load(userId,()->{
+            if(getParentActivity()==null)return;
+            updateProfileData(false);updateRowsIds();if(listAdapter!=null)listAdapter.notifyDataSetChanged();
+        });
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
@@ -10502,6 +10537,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         int prevRowsCount = rowCount;
         rowCount = 0;
+        wgramIdRow=wgramCustomizeRow=wgramManageRow=wgramBadgeRow=-1;
 
         setAvatarRow = -1;
         setAvatarSectionRow = -1;
@@ -10667,6 +10703,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     emptyRow = rowCount++;
                 }
             }
+
+            wgramIdRow=rowCount++;
+            if(userId==getUserConfig().getClientUserId())wgramCustomizeRow=rowCount++;
+            if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId()))wgramManageRow=rowCount++;
+            org.telegram.messenger.wgram.WGramSharedProfiles.Profile wgramProfile=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+            if(wgramProfile!=null && !wgramProfile.badgeTitle.isEmpty())wgramBadgeRow=rowCount++;
 
             if (UserObject.isUserSelf(user) && !myProfile) {
                 if (avatarBig == null && (user.photo == null || !(user.photo.photo_big instanceof TLRPC.TL_fileLocation_layer97) && !(user.photo.photo_big instanceof TLRPC.TL_fileLocationToBeDeprecated)) && (avatarsViewPager == null || avatarsViewPager.getRealCount() == 0)) {
@@ -11375,6 +11417,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updatedPeerColor();
             }
             if (topView != null) {
+                org.telegram.messenger.wgram.WGramSharedProfiles.Profile appearance=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+                java.io.File localBanner=userId==getUserConfig().getClientUserId()?org.telegram.messenger.wgram.WGramBanners.file(userId):null;
+                topView.setWGramBanner(localBanner!=null&&localBanner.exists()?localBanner:null,appearance==null?null:appearance.banner);
                 topView.setBackgroundEmojiId(UserObject.getProfileEmojiId(user), user != null && user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible, true);
             }
             if (ratingView != null) {
@@ -11530,7 +11575,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(WGramConfig.getDisplayedStatus(currentAccount, user), false, false, a));
                         nameTextViewRightDrawableContentDescription = LocaleController.getString(R.string.AccDescrPremium);
-                    } else if (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user)) {
+                    } else if (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user) || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(currentAccount,user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, false, false, a));
@@ -11551,7 +11596,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(WGramConfig.getDisplayedStatus(currentAccount, user), true, true, a));
-                    } else if (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user)) {
+                    } else if (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user) || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(currentAccount,user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, true, true, a));
@@ -11569,7 +11614,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (a == 1 && (rightIconIsStatus || rightIconIsPremium)) {
                     nameTextView[a].setRightDrawableOutside(true);
                 }
-                if (user.self && (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user))) {
+                if (user.self && (getMessagesController().isPremiumUser(user) || WGramConfig.hasLocalBadge(currentAccount, user) || org.telegram.messenger.wgram.WGramSharedProfiles.hasPremium(currentAccount,user))) {
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         showStatusSelect();
                     });
@@ -13521,7 +13566,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
-                    if (position == birthdayRow) {
+                    if(position==wgramIdRow){
+                        detailCell.setTextAndValue(""+userId,getString(R.string.WGramUserId),true);
+                    }else if(position==wgramCustomizeRow){
+                        detailCell.setTextAndValue(getString(R.string.WGramCustomizeProfile),getString(R.string.WGramBanner),true);
+                    }else if(position==wgramManageRow){
+                        detailCell.setTextAndValue(getString(R.string.WGramAdmin),"WGram",true);
+                    }else if(position==wgramBadgeRow){
+                        org.telegram.messenger.wgram.WGramSharedProfiles.Profile data=org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
+                        detailCell.setTextAndValue(data==null?"":data.badgeTitle,getString(R.string.WGramSpecialBadge),true);
+                    }else if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
                             final boolean today = BirthdayController.isToday(userFull);
@@ -14341,6 +14395,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
+            int wgramPosition=holder.getAdapterPosition();
+            if(wgramPosition>=0 && (wgramPosition==wgramIdRow || wgramPosition==wgramCustomizeRow || wgramPosition==wgramManageRow || wgramPosition==wgramBadgeRow))return true;
             if (notificationRow != -1) {
                 int position = holder.getAdapterPosition();
                 return position == notificationRow || position == numberRow || position == privacyRow ||
@@ -14376,6 +14432,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public int getItemViewType(int position) {
+            if(position>=0 && (position==wgramIdRow || position==wgramCustomizeRow || position==wgramManageRow || position==wgramBadgeRow))return VIEW_TYPE_TEXT_DETAIL;
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;

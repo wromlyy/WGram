@@ -222,6 +222,8 @@ public class UserObject {
     }
 
     public static int getProfileColorId(TLRPC.User user) {
+        int wgramRemoteColor=org.telegram.messenger.wgram.WGramSharedProfiles.color(UserConfig.selectedAccount,user);
+        if(wgramRemoteColor>=0 && WGramConfig.findLocalProfileAccount(user)<0)return wgramRemoteColor;
         int wgramAccount = WGramConfig.findLocalProfileAccount(user);
         if (wgramAccount >= 0 && WGramConfig.getProfileColor(wgramAccount) >= 0) return WGramConfig.getProfileColor(wgramAccount);
         if (user == null) return 0;
