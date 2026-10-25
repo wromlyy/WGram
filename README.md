@@ -1,46 +1,33 @@
-## Telegram messenger for Android
+# WGram · Android
 
-[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
-This repo contains the official source code for [Telegram App for Android](https://play.google.com/store/apps/details?id=org.telegram.messenger).
+Мод на официальных исходниках Telegram Android 13.1.1.
+Рабочая версия исходников — **0.1, разработка**. Собранного APK пока нет.
 
-## Creating your Telegram Application
+Добавлены:
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+- отдельный раздел **Настройки → Настройки WGram**;
+- переключатель Liquid Glass, автоматический и облегчённый режимы,
+  плотность стекла и применение оформления к открытым экранам;
+- стекло в общих компонентах `blur3`: панели, нижняя навигация,
+  кнопки и другие элементы клиента, использующие эту систему;
+- визуальный Premium для собственного профиля: значок, цвет,
+  эмодзи-статус и узор, с отдельными настройками для каждого аккаунта;
+- экспериментальный обмен эмодзи WGram: анимация в моде,
+  обычный символ со ссылкой в других клиентах;
+- собственное имя, package `org.wgram.messenger` и иконки с буквой W;
+- тесты логики и подготовленные GitHub Actions для проверок и debug APK.
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+На Android 6–11 и слабых устройствах используется эффект на Canvas:
+прозрачная заливка, градиент и блик. На более новых устройствах используются
+компоненты Telegram; преломление поддерживается с Android 13.
+Это реализация в стиле Liquid Glass, её совпадение с iPhone и работа
+на всех устройствах ещё не подтверждены. Другие поверхности вне `blur3`
+потребуют отдельной доработки.
 
-### API, Protocol documentation
+Оформление профиля пока видно на этом устройстве. Настоящая подписка
+Telegram и серверные возможности аккаунта не меняются. Для эмодзи
+реализован отдельный формат; проверка обмена через реальные аккаунты
+и сборка всего Android-клиента ещё предстоят.
 
-Telegram API manuals: https://core.telegram.org/api
-
-MTproto protocol manuals: https://core.telegram.org/mtproto
-
-### Compilation Guide
-
-**Note**: In order to support [reproducible builds](https://core.telegram.org/reproducible-builds), this repo contains dummy release.keystore,  google-services.json and filled variables inside BuildVars.java. Before publishing your own APKs please make sure to replace all these files with your own.
-
-You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android SDK 36.
-
-1. Clone the Telegram source code with its submodules:
-   ```bash
-   git clone --recursive --shallow-submodules https://github.com/DrKLO/Telegram.git Telegram
-   ```
-   In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
-   ```bash
-   git submodule init && git submodule update --init --recursive --depth=1
-   ```
-2. Copy your release.keystore into TMessagesProj/config
-3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
-4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.
-5. Open the project in the Studio (note that it should be opened, NOT imported).
-6. Fill out values in TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java – there’s a link for each of the variables showing where and which data to obtain.
-7. You are ready to compile Telegram.
-
-### Localization
-
-We moved all translations to https://translations.telegram.org/en/android/. Please use it.
+[С телефона](wgram/PHONE.md) · [Как собрать APK](wgram/BUILD.md) · [Формат эмодзи](wgram/PROTOCOL.md) ·
+[Исходный README Telegram](wgram/UPSTREAM-README.md) · [Лицензия](LICENSE)

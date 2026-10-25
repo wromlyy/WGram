@@ -89,6 +89,8 @@ import org.telegram.ui.Wallet.GramWallet;
 import org.telegram.ui.Wallet.WalletActivity;
 import org.telegram.utils.settings.SharedSettings;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.wgram.WGramConfig;
+import org.telegram.ui.wgram.WGramSettingsActivity;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.ConnectionsManager;
@@ -546,7 +548,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         avatarDrawable.setInfo(user);
         avatarView.setForUserOrChat(user, avatarDrawable);
-        titleView.setText(UserObject.getUserName(user));
+        titleView.setText(UserObject.getUserName(user) + (WGramConfig.hasLocalBadge(currentAccount, user) ? " ★" : ""));
         final StringBuilder sb = new StringBuilder();
         if (user != null) {
             sb.append(PhoneFormat.getInstance().format("+" + user.phone));
@@ -557,7 +559,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         subtitleView.setText(sb);
 
-        versionView.setText(getVersionName());
+        versionView.setText("WGram 0.1 · " + getVersionName());
     }
 
 
@@ -629,6 +631,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     @Override
     public void onResume() {
         super.onResume();
+        setInfo();
         if (listView.adapter != null) {
             listView.adapter.notifyDataSetChanged();
         }
@@ -643,6 +646,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
+        items.add(SettingCell.Factory.of(27, 0xFF55C8E8, 0xFF6963EF,
+            R.drawable.settings_features, getString(R.string.WGramSettings), getString(R.string.WGramSettingsInfo)));
+        items.add(UItem.asShadow(null));
 
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
@@ -837,6 +843,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             return;
         }
         switch (item.id) {
+            case 27:
+                presentSettingFragment(new WGramSettingsActivity(currentAccount));
+                break;
             case 1:
                 presentSettingFragment(new UserInfoActivity());
                 break;

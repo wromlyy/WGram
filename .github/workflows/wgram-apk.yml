@@ -1,0 +1,63 @@
+name: WGram debug APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      WGRAM_API_ID: ${{ secrets.WGRAM_API_ID }}
+      WGRAM_API_HASH: ${{ secrets.WGRAM_API_HASH }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check build configuration
+        env:
+          WGRAM_FIREBASE_JSON: ${{ secrets.WGRAM_FIREBASE_JSON }}
+        run: |
+          python3 - <<'PYCONFIG'
+          import json, os, pathlib, re
+          api_id = os.environ.get('WGRAM_API_ID', '')
+          api_hash = os.environ.get('WGRAM_API_HASH', '')
+          if not re.fullmatch(r'[0-9]{1,9}', api_id) or int(api_id) <= 0 or not re.fullmatch(r'[0-9a-fA-F]{32}', api_hash):
+              raise SystemExit('Set WGRAM_API_ID and WGRAM_API_HASH repository secrets.')
+          firebase_json = os.environ.get('WGRAM_FIREBASE_JSON', '').strip()
+          if not firebase_json:
+              with open(os.environ['GITHUB_ENV'], 'a') as env:
+                  env.write('WGRAM_FIREBASE_ENABLED=false\n')
+              print('Firebase disabled: background push notifications are unavailable in this build.')
+              raise SystemExit(0)
+          try:
+              data = json.loads(firebase_json)
+              packages = {client['client_info']['android_client_info']['package_name'] for client in data.get('client', [])}
+          except (ValueError, KeyError, TypeError, AttributeError):
+              raise SystemExit('Set WGRAM_FIREBASE_JSON to your Firebase configuration.')
+          if 'org.wgram.messenger.beta' not in packages:
+              raise SystemExit('Firebase configuration must include org.wgram.messenger.beta.')
+          dest = pathlib.Path('TMessagesProj_App/src/debug/google-services.json')
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          dest.write_text(json.dumps(data))
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('WGRAM_FIREBASE_ENABLED=true\n')
+          PYCONFIG
+      - name: Fetch native dependencies
+        run: git submodule update --init --recursive --depth=1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android tools
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
+      - name: Validate WGram
+        run: |
+          sh wgram/test.sh
+          python3 wgram/verify_resources.py
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' :TMessagesProj_App:assembleAfatDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WGram-debug
+          path: TMessagesProj_App/build/outputs/apk/afat/debug/*.apk
+          if-no-files-found: error

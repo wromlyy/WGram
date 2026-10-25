@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Telegram</string>
-    <string name="AppNameBeta">Telegram Beta</string>
+    <string name="AppName">WGram</string>
+    <string name="AppNameBeta">WGram Dev</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>
@@ -11630,4 +11630,32 @@
     <string name="NoPaidMessagesTokenUsed">un1 used your QR code and can message you for free</string>
     <string name="NoPaidMessagesTokenUsedOut">You used the QR code of un1 and can message them for free</string>
     <string name="NoPaidMessagesTokenImported">You can now message **%1$s** for free.</string>
+    <!-- WGram -->
+
+    <string name="WGramSettings">Настройки WGram</string>
+    <string name="WGramSettingsInfo">Liquid Glass, оформление профиля и эмодзи</string>
+    <string name="WGramGlassHeader">Оформление</string>
+    <string name="WGramGlass">Liquid Glass</string>
+    <string name="WGramGlassInfo">Стеклянные панели и элементы управления внутри WGram. На старых устройствах используется облегчённый эффект.</string>
+    <string name="WGramGlassMode">Качество эффекта</string>
+    <string name="WGramGlassAuto">Автоматически</string>
+    <string name="WGramGlassLight">Облегчённый</string>
+    <string name="WGramGlassOpacity">Плотность стекла</string>
+    <string name="WGramGlassApply">Применить оформление</string>
+    <string name="WGramGlassApplyInfo">Применение обновит открытые экраны. Настройки сохраняются после закрытия приложения.</string>
+    <string name="WGramProfileHeader">Мой профиль</string>
+    <string name="WGramVisualPremium">Визуальный Premium</string>
+    <string name="WGramVisualPremiumInfo">Значок, цвет профиля и эмодзи-статус на этом устройстве. Оформление хранится отдельно для каждого аккаунта.</string>
+    <string name="WGramProfileColor">Цвет профиля</string>
+    <string name="WGramProfileEmoji">Эмодзи статуса и узора</string>
+    <string name="WGramProfileEmojiChosen">Выбран</string>
+    <string name="WGramProfileEmojiEmpty">Без эмодзи</string>
+    <string name="WGramProfilePreview">Открыть мой профиль</string>
+    <string name="WGramDefault">Как в Telegram</string>
+    <string name="WGramChooseEmoji">Выберите анимированный эмодзи</string>
+    <string name="WGramRemoveEmoji">Убрать эмодзи</string>
+    <string name="WGramEmojisHeader">Сообщения</string>
+    <string name="WGramEmojis">Эмодзи WGram</string>
+    <string name="WGramEmojisInfo">Отправляйте эмодзи из панели ввода. Пользователи WGram увидят анимированный вариант, а в других клиентах останется обычный символ со ссылкой WGram. Для секретных чатов используется обычное поведение Telegram.</string>
+    <string name="WGramAbout">WGram · неофициальный клиент на Telegram API\nВерсия 0.1 · разработка</string>
 </resources>

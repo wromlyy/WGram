@@ -1,0 +1,4 @@
+# Copy to wgram.properties and use your own application values from my.telegram.org.
+# wgram.properties is ignored by Git.
+api.id=0
+api.hash=

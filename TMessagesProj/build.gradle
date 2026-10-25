@@ -4,6 +4,27 @@ apply plugin: 'com.android.library'
 apply plugin: 'org.telegram.build-plugin'
 apply plugin: 'idea'
 
+// WGram credentials are loaded without writing them into tracked Java sources.
+def wgramProperties = new Properties()
+def wgramPropertiesFile = rootProject.file('wgram.properties')
+if (wgramPropertiesFile.exists()) {
+    wgramPropertiesFile.withInputStream { wgramProperties.load(it) }
+}
+def wgramApiId = System.getenv('WGRAM_API_ID') ?: wgramProperties.getProperty('api.id', '0')
+def wgramApiHash = System.getenv('WGRAM_API_HASH') ?: wgramProperties.getProperty('api.hash', '')
+if (!(wgramApiId ==~ /[0-9]{1,9}/) || !(wgramApiHash ==~ /[a-fA-F0-9]{32}/ || wgramApiHash.isEmpty())) {
+    throw new GradleException('Invalid WGram API configuration. See wgram/BUILD.md.')
+}
+
+tasks.register('checkWGramConfiguration') {
+    doLast {
+        if (wgramApiId.toInteger() <= 0 || wgramApiHash.isEmpty()) {
+            throw new GradleException('Configure your Telegram API ID and hash in wgram.properties or WGRAM_API_ID/WGRAM_API_HASH. See wgram/BUILD.md.')
+        }
+    }
+}
+tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'checkWGramConfiguration' }
+
 idea {
     module {
         excludeDirs += [
@@ -135,6 +156,9 @@ android {
     }
 
     defaultConfig {
+        buildConfigField "boolean", "WGRAM_FIREBASE_ENABLED", rootProject.ext.wgramFirebaseEnabled.toString()
+        buildConfigField "int", "WGRAM_API_ID", Integer.toString(wgramApiId.toInteger())
+        buildConfigField "String", "WGRAM_API_HASH", '"' + wgramApiHash + '"'
         minSdkVersion 23
         targetSdkVersion 36
 

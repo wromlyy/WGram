@@ -34,12 +34,12 @@ public class LauncherIconController {
     }
 
     public enum LauncherIcon {
-        DEFAULT("DefaultIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconDefault),
-        VINTAGE("VintageIcon", R.drawable.icon_6_background_sa, R.mipmap.icon_6_foreground_sa, R.string.AppIconVintage),
-        AQUA("AquaIcon", R.drawable.icon_4_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconAqua),
-        PREMIUM("PremiumIcon", R.drawable.icon_3_background_sa, R.mipmap.icon_3_foreground_sa, R.string.AppIconPremium, true),
-        TURBO("TurboIcon", R.drawable.icon_5_background_sa, R.mipmap.icon_5_foreground_sa, R.string.AppIconTurbo, true),
-        NOX("NoxIcon", R.mipmap.icon_2_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconNox, true);
+        DEFAULT("DefaultIcon", R.drawable.wgram_icon_background, R.drawable.wgram_launcher_foreground, R.string.AppIconDefault),
+        VINTAGE("VintageIcon", R.drawable.wgram_icon_background_vintage, R.drawable.wgram_launcher_foreground, R.string.AppIconVintage),
+        AQUA("AquaIcon", R.drawable.wgram_icon_background_aqua, R.drawable.wgram_launcher_foreground, R.string.AppIconAqua),
+        PREMIUM("PremiumIcon", R.drawable.wgram_icon_background_premium, R.drawable.wgram_launcher_foreground, R.string.AppIconPremium, true),
+        TURBO("TurboIcon", R.drawable.wgram_icon_background_turbo, R.drawable.wgram_launcher_foreground, R.string.AppIconTurbo, true),
+        NOX("NoxIcon", R.drawable.wgram_icon_background_nox, R.drawable.wgram_launcher_foreground, R.string.AppIconNox, true);
 
         public final String key;
         public final int background;

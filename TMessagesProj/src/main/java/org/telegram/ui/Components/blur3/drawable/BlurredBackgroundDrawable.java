@@ -30,6 +30,9 @@ import androidx.core.math.MathUtils;
 
 import org.telegram.messenger.utils.RadiiUtils;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.wgram.WGramConfig;
+import org.telegram.ui.wgram.WGramGlassPainter;
 import org.telegram.ui.Components.blur3.Blur3HashImpl;
 import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
 import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundProvider;
@@ -221,6 +224,10 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
         if (colorProvider == null) return;
 
         backgroundColor = colorProvider.getBackgroundColor();
+        if (WGramConfig.isGlassEnabled() && Color.alpha(backgroundColor) > 0 && Color.alpha(backgroundColor) < 255) {
+            backgroundColor = ColorUtils.setAlphaComponent(backgroundColor,
+                Math.min(254, Color.alpha(backgroundColor) * WGramConfig.getGlassOpacity() / 75));
+        }
         shadowColor = colorProvider.getShadowColor();
         strokeColorTop = colorProvider.getStrokeColorTop();
         strokeColorBottom = colorProvider.getStrokeColorBottom();
@@ -570,7 +577,18 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
 
     /* Universal */
 
+    private final WGramGlassPainter wgramGlassPainter = new WGramGlassPainter();
+
+    protected final boolean drawWGramFallback(Canvas canvas) {
+        if (colorProvider == null) return false;
+        if (WGramConfig.isGlassEnabled() && !WGramConfig.useLightGlass() && !LiteMode.isPowerSaverApplied()) return false;
+        wgramGlassPainter.draw(canvas, boundProps.path, boundProps.boundsWithPadding,
+            getAlpha(), Theme.getColor(Theme.key_windowBackgroundWhite));
+        return true;
+    }
+
     protected void drawSource(Canvas canvas, BlurredBackgroundSource source) {
+        if (drawWGramFallback(canvas)) return;
         if (boundProps.boundsWithPadding.isEmpty()) {
             return;
         }

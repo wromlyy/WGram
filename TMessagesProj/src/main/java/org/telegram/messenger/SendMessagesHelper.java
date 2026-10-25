@@ -72,6 +72,7 @@ import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.tgnet.tl.TL_update;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.messenger.wgram.WGramEmojis;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Business.QuickRepliesController;
 import org.telegram.ui.Cells.ChatMessageCell;
@@ -3514,13 +3515,13 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                         request.flags |= 2048;
                         request.no_webpage = !messageObject.editingMessageSearchWebPage;
                         if (messageObject.editingMessageEntities != null) {
-                            request.entities = messageObject.editingMessageEntities;
+                            request.entities = WGramEmojis.forSending(currentAccount, peer, request.message, messageObject.editingMessageEntities);
                             request.flags |= 8;
                         } else {
                             CharSequence[] message = new CharSequence[]{messageObject.editingMessage};
                             ArrayList<TLRPC.MessageEntity> entities = getMediaDataController().getEntities(message, supportsSendingNewEntities);
                             if (entities != null && !entities.isEmpty()) {
-                                request.entities = entities;
+                                request.entities = WGramEmojis.forSending(currentAccount, peer, request.message, entities);
                                 request.flags |= 8;
                             }
                         }
@@ -3573,6 +3574,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public int editMessage(MessageObject messageObject, String message, boolean searchLinks, final BaseFragment fragment, ArrayList<TLRPC.MessageEntity> entities, int scheduleDate, int scheduleRepeatPeriod) {
+        entities = WGramEmojis.forSending(currentAccount, messageObject.getDialogId(), message, entities);
         if (fragment == null || fragment.getParentActivity() == null) {
             return 0;
         }
@@ -4444,7 +4446,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         TLRPC.TL_messageMediaWebPage mediaWebPage = sendMessageParams.mediaWebPage;
         boolean searchLinks = sendMessageParams.searchLinks;
         MessageObject retryMessageObject = sendMessageParams.retryMessageObject;
-        ArrayList<TLRPC.MessageEntity> entities = sendMessageParams.entities;
+        ArrayList<TLRPC.MessageEntity> entities = WGramEmojis.forSending(currentAccount, sendMessageParams.peer,
+            sendMessageParams.caption != null ? sendMessageParams.caption : sendMessageParams.message, sendMessageParams.entities);
         TLRPC.ReplyMarkup replyMarkup = sendMessageParams.replyMarkup;
         HashMap<String, String> params = sendMessageParams.params;
         boolean notify = sendMessageParams.notify;

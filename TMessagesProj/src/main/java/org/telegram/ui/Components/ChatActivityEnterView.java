@@ -147,6 +147,7 @@ import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SharedPrefsHelper;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.wgram.WGramEmojis;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
@@ -7454,6 +7455,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public static boolean checkPremiumAnimatedEmoji(int currentAccount, long dialogId, BaseFragment parentFragment, FrameLayout container, CharSequence message) {
+        if (WGramEmojis.canCompose(currentAccount, dialogId)) return false;
         if (message == null || parentFragment == null) {
             return false;
         }
@@ -10195,6 +10197,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     @Nullable
     public static CharSequence applyMessageEntities(ArrayList<TLRPC.MessageEntity> entities, CharSequence text, Paint.FontMetricsInt fontMetricsInt) {
+        entities = WGramEmojis.forDisplay(text, entities);
         CharSequence result;
         MediaDataController.sortEntities(entities);
         text = FormattedDateSpan.restoreFormatedDateEntities(text);
@@ -11822,6 +11825,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             emojiView = null;
         }
         if (emojiView != null) {
+            emojiView.allowEmojisForNonPremium(WGramEmojis.canCompose(currentAccount, dialog_id));
             return;
         }
         emojiView = new EmojiView(parentFragment, allowAnimatedEmoji, true, true, getContext(), true, info, sizeNotifierLayout, shouldDrawBackground, resourcesProvider, emojiViewFrozen, windowInsetsInAppController != null) {
@@ -11833,6 +11837,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
             }
         };
+        emojiView.allowEmojisForNonPremium(WGramEmojis.canCompose(currentAccount, dialog_id));
         emojiView.shouldDrawStickerSettings = true;
         if (!shouldDrawBackground) {
             emojiView.updateColors();

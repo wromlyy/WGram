@@ -14,3 +14,11 @@ TMessagesProj_AppHockeyApp/afat/
 TMessagesProj_AppStandalone/afat/
 TMessagesProj_AppHuawei/afat/
 TMessagesProj/jni/ffmpeg/build_android
+
+# Local WGram build configuration
+wgram.properties
+**/src/debug/google-services.json
+**/src/release/google-services.json
+**/src/standalone/google-services.json
+wgram/.tools/
+__pycache__/

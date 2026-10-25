@@ -1,0 +1,20 @@
+name: WGram checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Core behavior and Java syntax
+        run: sh wgram/test.sh
+      - name: Resources
+        run: python3 wgram/verify_resources.py

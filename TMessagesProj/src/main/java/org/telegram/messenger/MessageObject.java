@@ -63,6 +63,7 @@ import org.telegram.tgnet.tl.TL_keyboard;
 import org.telegram.tgnet.tl.TL_iv;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.messenger.wgram.WGramEmojis;
 import org.telegram.ui.Business.QuickRepliesController;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.ChatActivity;
@@ -8044,6 +8045,7 @@ public class MessageObject {
     }
 
     public static Spannable replaceAnimatedEmoji(CharSequence text, ArrayList<TLRPC.MessageEntity> entities, Paint.FontMetricsInt fontMetricsInt, boolean top, float scale, int minusLimit) {
+        entities = WGramEmojis.forDisplay(text, entities);
         if (text == null) {
             return null;
         }
@@ -8134,6 +8136,7 @@ public class MessageObject {
         });
         for (int a = 0, N = entitiesCopy.size(); a < N; a++) {
             TLRPC.MessageEntity entity = entitiesCopy.get(a);
+            if (WGramEmojis.isEmojiLink(entity, text)) continue;
             if (entity.length <= 0 || entity.offset < 0 || entity.offset >= text.length()) {
                 continue;
             } else if (entity.offset + entity.length > text.length()) {

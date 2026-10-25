@@ -11,6 +11,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.math.MathUtils;
 
 import org.telegram.tgnet.TLRPC;
+import org.telegram.messenger.wgram.WGramConfig;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 
@@ -147,6 +148,9 @@ public class LiteMode {
     }
 
     public static boolean isEnabled(int flag) {
+        if (flag == FLAG_LIQUID_GLASS) {
+            return WGramConfig.useRefraction() && !isPowerSaverApplied();
+        }
         if (flag == FLAG_CHAT_FORUM_TWOCOLUMN && AndroidUtilities.isTablet()) {
             // always enabled for tablets
             return true;
@@ -155,6 +159,7 @@ public class LiteMode {
     }
 
     public static boolean isEnabledSetting(int flag) {
+        if (flag == FLAG_LIQUID_GLASS) return WGramConfig.isGlassEnabled();
         return (getValue(true) & flag) > 0;
     }
 
@@ -163,6 +168,7 @@ public class LiteMode {
     }
 
     public static void toggleFlag(int flag, boolean enabled) {
+        if (flag == FLAG_LIQUID_GLASS) WGramConfig.setGlassEnabled(enabled);
         setAllFlags(enabled ? getValue(true) | flag : getValue(true) & ~flag);
     }
 

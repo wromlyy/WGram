@@ -14,6 +14,7 @@ import androidx.annotation.NonNull;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.messenger.wgram.WGramConfig;
 import org.telegram.tgnet.tl.TL_account;
 
 import java.util.Locale;
@@ -221,12 +222,16 @@ public class UserObject {
     }
 
     public static int getProfileColorId(TLRPC.User user) {
+        int wgramAccount = WGramConfig.findLocalProfileAccount(user);
+        if (wgramAccount >= 0 && WGramConfig.getProfileColor(wgramAccount) >= 0) return WGramConfig.getProfileColor(wgramAccount);
         if (user == null) return 0;
         if (user.profile_color instanceof TLRPC.TL_peerColor && (user.profile_color.flags & 1) != 0) return user.profile_color.color;
         return -1;
     }
 
     public static long getProfileEmojiId(TLRPC.User user) {
+        int wgramAccount = WGramConfig.findLocalProfileAccount(user);
+        if (wgramAccount >= 0 && WGramConfig.getProfileEmoji(wgramAccount) != 0) return WGramConfig.getProfileEmoji(wgramAccount);
         if (user != null && user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible) {
             return ((TLRPC.TL_emojiStatusCollectible) user.emoji_status).pattern_document_id;
         }

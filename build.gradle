@@ -53,3 +53,9 @@ subprojects {
         }
     }
 }
+
+// Initial WGram builds work without a Firebase project. Enable explicitly
+// only after supplying google-services.json for this application's package.
+ext.wgramFirebaseEnabled = providers.gradleProperty('wgramFirebase')
+        .orElse(providers.environmentVariable('WGRAM_FIREBASE_ENABLED'))
+        .getOrElse('false').toBoolean()
