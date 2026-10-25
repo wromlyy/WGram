@@ -27,8 +27,9 @@ public final class WGramNotices {
         TLRPC.Message chosen=null;
         long now=ConnectionsManager.getInstance(account).getCurrentTime();
         for(TLRPC.Message m:messages){
-            if(m==null || m.from_id==null || m.from_id.user_id!=WGramNoticeWire.ADMIN_ID
-                || MessageDialog(m)!=WGramNoticeWire.ADMIN_ID || m.peer_id==null || m.peer_id.user_id!=user)continue;
+            if(m==null || m.from_id==null || m.peer_id==null || m.ttl_period!=0
+                || (m.media!=null && m.media.ttl_seconds!=0) || !WGramNoticeWire.isDirectDelivery(
+                m.from_id.user_id,MessageDialog(m),m.peer_id.user_id,m.peer_id.chat_id,m.peer_id.channel_id,user))continue;
             WGramNoticeWire.Notice n=WGramNoticeWire.decode(m.message,m.from_id.user_id,user,m.fwd_from!=null,m.out,
                 DialogObject.isEncryptedDialog(MessageDialog(m)),now);
             if(n!=null && m.id>newest){newest=m.id;chosen=m;}
@@ -48,7 +49,7 @@ public final class WGramNotices {
         String wire=prefs.getString("notice_pending","");
         WGramNoticeWire.Notice n=WGramNoticeWire.decode(wire,WGramNoticeWire.ADMIN_ID,
             UserConfig.getInstance(account).getClientUserId(),false,false,false,ConnectionsManager.getInstance(account).getCurrentTime());
-        if(n==null)return;
+        if(n==null){if(!wire.isEmpty())prefs.edit().remove("notice_pending").apply();return;}
         showing=true;
         AlertDialog dialog=new AlertDialog.Builder(fragment.getParentActivity())
             .setTitle(LocaleController.getString(n.action==2?R.string.WGramJokeBan:R.string.WGramWarning))

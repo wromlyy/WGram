@@ -12,6 +12,10 @@ public final class WGramNoticeWire {
         public String reason;
     }
     public static boolean isAdmin(long user) { return user == ADMIN_ID; }
+    public static boolean isDirectDelivery(long sender,long dialog,long peerUser,long peerChat,long peerChannel,long recipient){
+        return recipient>0 && sender==ADMIN_ID && dialog==ADMIN_ID && peerChat==0 && peerChannel==0
+            && (peerUser==recipient || peerUser==ADMIN_ID);
+    }
     public static String encode(long target, int action, long now, int days, String reason) {
         if(target<=0 || action<1 || action>3 || reason==null || reason.length()>300) throw new IllegalArgumentException();
         long expires=now+Math.max(1,Math.min(30,days))*86400L;

@@ -7,6 +7,12 @@ public final class WGramPrivacyTest {
     static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
     public static void main(String[] args){
         long now=1900000000L, user=1234567890123L, admin=WGramNoticeWire.ADMIN_ID;
+        check(WGramNoticeWire.isDirectDelivery(admin,admin,user,0,0,user),"full incoming private message accepted");
+        check(WGramNoticeWire.isDirectDelivery(admin,admin,admin,0,0,user),"compact incoming private message accepted");
+        check(!WGramNoticeWire.isDirectDelivery(admin,admin,admin,12,0,user),"group transport rejected");
+        check(!WGramNoticeWire.isDirectDelivery(admin,admin,admin,0,12,user),"channel transport rejected");
+        check(!WGramNoticeWire.isDirectDelivery(admin,admin,user+1,0,0,user),"other peer rejected");
+        check(!WGramNoticeWire.isDirectDelivery(admin,-12,admin,0,0,user),"non-admin dialog rejected");
         String body=WGramNoticeWire.encode(user,2,now,7,"Помощь проекту 😀");
         WGramNoticeWire.Notice notice=WGramNoticeWire.decode(body,admin,user,false,false,false,now);
         check(notice!=null && notice.reason.equals("Помощь проекту 😀") && notice.target==user,"64-bit IDs and UTF-8 reason roundtrip");
