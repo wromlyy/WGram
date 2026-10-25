@@ -101,7 +101,10 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android tools
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Install native build tools
+        if: ${{ !inputs.reuse_native }}
+        run: sdkmanager 'ndk;27.2.12479018' 'cmake;3.22.1'
       - name: Validate WGram
         run: |
           sh wgram/test.sh
@@ -124,6 +127,18 @@ jobs:
       - name: Build offline UI test APK
         if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
         run: ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' :TMessagesProj_App:assembleAfatDebugAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
+        with:
+          name: WGram-ui-test-apk
+          path: TMessagesProj_App/build/outputs/apk/androidTest/**/*.apk
+          if-no-files-found: error
+      - name: Free space for Android emulator
+        if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
+        run: |
+          # Both APKs are already built. These ephemeral CI caches/tools are no longer needed.
+          rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake" "$HOME/.gradle/caches" "$HOME/.gradle/wrapper"
+          df -h / "$ANDROID_HOME"
       - name: Run offline Android UI checks
         if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
         timeout-minutes: 12
@@ -137,7 +152,7 @@ jobs:
           timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
           adb shell cmd connectivity airplane-mode enable
-          adb install -r TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
+          adb install -r -g TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
           test_apk=$(find TMessagesProj_App/build/outputs/apk/androidTest -name '*.apk' -print -quit)
           adb install -r "$test_apk"
           adb logcat -c
