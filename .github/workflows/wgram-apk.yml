@@ -153,7 +153,7 @@ jobs:
           test -f "$ANDROID_AVD_HOME/wgram-smoke.ini"
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x wgram-smoke
           mkdir -p wgram-ui-results
-          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -cores 2 -memory 3072 > wgram-ui-results/emulator.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu lavapipe -cores 4 -memory 2048 -skin 720x1280 -dpi-device 320 -show-kernel > wgram-ui-results/emulator.log 2>&1 &
           timeout 60 adb wait-for-device
           # Airplane mode does not disable the emulator's virtual Ethernet.
           adb root

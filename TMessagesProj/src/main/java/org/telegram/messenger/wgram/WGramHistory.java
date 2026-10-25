@@ -28,7 +28,10 @@ public final class WGramHistory {
     }
     private static SQLiteDatabase open(long user) {
         SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file(user), null);
-        db.execSQL("PRAGMA secure_delete=ON");
+        // This PRAGMA returns a row; Android rejects it through execSQL().
+        try (Cursor pragma = db.rawQuery("PRAGMA secure_delete=ON", null)) {
+            pragma.moveToFirst();
+        }
         db.execSQL("CREATE TABLE IF NOT EXISTS live (dialog INTEGER, mid INTEGER, channel INTEGER, sender INTEGER, text TEXT, time INTEGER, PRIMARY KEY(dialog,mid))");
         db.execSQL("CREATE TABLE IF NOT EXISTS history (seq INTEGER PRIMARY KEY AUTOINCREMENT, dialog INTEGER, mid INTEGER, sender INTEGER, text TEXT, kind INTEGER, time INTEGER)");
         if (db.getVersion() < 2) {
