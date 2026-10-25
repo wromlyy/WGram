@@ -105,6 +105,7 @@ jobs:
           assert signers, 'Android signing verifier missing'
           signer = signers[-1]
           signature = subprocess.check_output([str(signer), 'verify', '--verbose', '--print-certs', str(source)], text=True)
+          print(signature, flush=True)
           cert = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)', signature)
           assert cert and cert.group(1) == '6805db11fd8984f63fe91f4b4e9eea7f751b2a17a056bb08a25c7ad37325ab86', 'Unexpected WGram signing certificate'
           badging = subprocess.check_output([str(signer.parent / 'aapt'), 'dump', 'badging', str(source)], text=True)
