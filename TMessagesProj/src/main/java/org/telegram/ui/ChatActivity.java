@@ -26638,7 +26638,7 @@ public class ChatActivity extends BaseFragment implements
                 updateReplyMessageOwners(mid, null);
             }
             if (obj != null) {
-                if (chatMode==MODE_DEFAULT && !isThreadChat() && currentEncryptedChat==null
+                if (!wgramRemovingHistory && chatMode==MODE_DEFAULT && !isThreadChat() && currentEncryptedChat==null
                         && org.telegram.messenger.wgram.WGramHistory.canShowInline(currentAccount,obj)) {
                     obj.deleted=false;
                     obj.wgramDeleted=true;
@@ -30070,11 +30070,27 @@ public class ChatActivity extends BaseFragment implements
     }
 
     Bulletin.Delegate bulletinDelegate;
+    private int wgramHistoryRevision=-1;
+    private boolean wgramRemovingHistory;
+    private void updateWGramHistoryVisibility(){
+        int revision=org.telegram.messenger.wgram.WGramConfig.historyRevision(currentAccount);
+        if(wgramHistoryRevision>=0&&(revision!=wgramHistoryRevision||!org.telegram.messenger.wgram.WGramConfig.isHistoryEnabled(currentAccount))){
+            ArrayList<Integer> removed=new ArrayList<>();
+            for(MessageObject object:messages)if(object.wgramDeleted)removed.add(object.getId());
+            if(!removed.isEmpty()&&chatAdapter!=null){
+                wgramRemovingHistory=true;
+                try{processDeletedMessages(removed,ChatObject.isChannel(currentChat)?-dialog_id:0,false,false);}
+                finally{wgramRemovingHistory=false;}
+            }
+        }
+        wgramHistoryRevision=revision;
+    }
 
     @Override
     public void onResume() {
         super.onResume();
         AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.wgram.WGramNotices.showPending(currentAccount), 350);
+        updateWGramHistoryVisibility();
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {

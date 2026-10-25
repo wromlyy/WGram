@@ -1,6 +1,20 @@
-name: Publish verified WGram 0.2 APK
+name: Publish verified WGram APK
 on:
   workflow_dispatch:
+    inputs:
+      source_run:
+        description: 'Successful APK build with offline UI checks'
+        required: true
+        type: string
+      apk_sha256:
+        description: 'Locally verified APK SHA-256'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag'
+        required: true
+        default: v0.3
+        type: string
 permissions:
   contents: write
   actions: read
@@ -8,53 +22,90 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      WGRAM_BUILD_RUN: ${{ inputs.source_run }}
+      WGRAM_APK_SHA: ${{ inputs.apk_sha256 }}
+      WGRAM_RELEASE_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
+      - name: Check completed build and UI results
+        run: |
+          python3 - <<'PY'
+          import os, re
+          assert re.fullmatch(r'[0-9]+', os.environ['WGRAM_BUILD_RUN'])
+          assert re.fullmatch(r'[a-f0-9]{64}', os.environ['WGRAM_APK_SHA'])
+          assert re.fullmatch(r'v[0-9]+\.[0-9]+(?:\.[0-9]+)?', os.environ['WGRAM_RELEASE_TAG'])
+          PY
+          gh api "repos/$GH_REPO/actions/runs/$WGRAM_BUILD_RUN" > build-run.json
+          gh api "repos/$GH_REPO/actions/runs/$WGRAM_BUILD_RUN/jobs" > build-jobs.json
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('build-run.json'))
+          jobs = json.load(open('build-jobs.json'))['jobs']
+          assert run['conclusion'] == 'success', 'Build must succeed before publication'
+          assert run['path'] == '.github/workflows/wgram-apk.yml'
+          checks = [s for j in jobs for s in j['steps'] if s['name'] == 'Run offline Android UI checks']
+          assert len(checks) == 1 and checks[0]['conclusion'] == 'success', 'UI checks must pass'
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('WGRAM_SOURCE_SHA=' + run['head_sha'] + '\n')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WGRAM_SOURCE_SHA }}
       - uses: actions/download-artifact@v4
         with:
           name: WGram-debug
           path: verified-apk
-          run-id: 40212509751
+          run-id: ${{ inputs.source_run }}
           github-token: ${{ github.token }}
-      - name: Verify the existing APK before publication
+      - name: Verify APK and create BotHost package
         run: |
           python3 - <<'PY'
-          import hashlib, pathlib, zipfile
+          import hashlib, os, pathlib, zipfile
           source = pathlib.Path('verified-apk/app.apk')
-          expected = 'f7a7e3880a3caa103302374d07de14189b4fe93983aaef6ffdced25db763770b'
           actual = hashlib.file_digest(source.open('rb'), 'sha256').hexdigest()
-          if actual != expected:
-              raise SystemExit('APK SHA-256 does not match the verified WGram 0.2 build')
+          assert actual == os.environ['WGRAM_APK_SHA'], 'Unexpected APK checksum'
           with zipfile.ZipFile(source) as apk:
-              if apk.testzip() is not None:
-                  raise SystemExit('APK has a damaged entry')
-              if 'AndroidManifest.xml' not in apk.namelist():
-                  raise SystemExit('APK manifest is missing')
+              assert apk.testzip() is None, 'Damaged APK entry'
+              assert 'AndroidManifest.xml' in apk.namelist()
           source.rename('WGram.apk')
-          pathlib.Path('WGram.apk.sha256').write_text(expected + '  WGram.apk\n')
+          pathlib.Path('WGram.apk.sha256').write_text(actual + '  WGram.apk\n')
           print('Verified WGram.apk:', actual)
           PY
-      - name: Attach standalone APK and publish the private repository release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          python3 -m unittest discover -s wgram/bot/tests -v
+          python3 wgram/package_bot.py WGramBot.zip
+      - name: Publish standalone APK and separate bot project
         run: |
-          gh release upload v0.2 WGram.apk WGram.apk.sha256 --clobber
-          gh release edit v0.2 --draft=false --prerelease
-      - name: Verify uploaded asset digest
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          cat > release-notes.md <<'NOTES'
+          WGram 0.3: удалённый текст с отметкой × в чате, удобнее настройки и админка,
+          изменяемый текст ограничения до отзыва, копирование профиля с подтверждением,
+          варианты формы пузырей с примерами, канал @WGramnews.
+
+          Скачайте WGram.apk напрямую — распаковка не нужна.
+          WGramBot.zip — отдельный проект бота для BotHost, не Android-приложение.
+          Общие баннеры и значки требуют запуска бота и подключения HTTPS-сервиса.
+          Бот не развёрнут автоматически. Инструкция находится в архиве бота.
+
+          Пройдены сборка Android, проверки открытия экранов на офлайн-эмуляторе,
+          поведения базы истории и аутентификации сервиса бота. Реальный вход,
+          копирование профиля через Telegram и обмен между двумя аккаунтами требуют
+          проверки на устройствах. Firebase выключен, фоновые уведомления могут задерживаться.
+          NOTES
+          gh release create "$WGRAM_RELEASE_TAG" --target "$WGRAM_SOURCE_SHA" --title "WGram ${WGRAM_RELEASE_TAG#v}" --notes-file release-notes.md --draft --prerelease
+          gh release upload "$WGRAM_RELEASE_TAG" WGram.apk WGram.apk.sha256 WGramBot.zip WGramBot.zip.sha256
+          gh release edit "$WGRAM_RELEASE_TAG" --draft=false --prerelease
+      - name: Verify uploaded APK digest
         run: |
-          gh release view v0.2 --json assets,isDraft > published-release.json
+          gh release view "$WGRAM_RELEASE_TAG" --json assets,isDraft > published-release.json
           python3 - <<'PY'
-          import json
+          import json, os, pathlib
           release = json.load(open('published-release.json'))
-          expected = 'sha256:f7a7e3880a3caa103302374d07de14189b4fe93983aaef6ffdced25db763770b'
-          assets = [a for a in release['assets'] if a['name'] == 'WGram.apk']
-          if release['isDraft'] or len(assets) != 1:
-              raise SystemExit('APK release is incomplete')
-          asset = assets[0]
-          if asset.get('state') != 'uploaded' or asset.get('size') != 114459273 or asset.get('digest') != expected:
-              raise SystemExit('Uploaded APK integrity check failed')
-          print('Standalone APK uploaded and checksum verified:', asset['url'])
+          assert not release['isDraft']
+          for name, checksum in [('WGram.apk', os.environ['WGRAM_APK_SHA']), ('WGramBot.zip', pathlib.Path('WGramBot.zip.sha256').read_text().split()[0])]:
+              assets = [a for a in release['assets'] if a['name'] == name]
+              assert len(assets) == 1 and assets[0]['state'] == 'uploaded'
+              assert assets[0]['size'] == pathlib.Path(name).stat().st_size
+              assert assets[0]['digest'] == 'sha256:' + checksum
+              print('Uploaded asset checksum verified:', name)
           PY

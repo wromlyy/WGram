@@ -38,8 +38,10 @@ public final class WGramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader("WGram 0.3"));
         items.add(UItem.asShadow(getString(R.string.WGramSettingsWelcome)));
         items.add(UItem.asButton(GLASS_PAGE,R.drawable.wgram_logo,getString(R.string.WGramGlassHeader),getString(WGramConfig.isGlassEnabled()?R.string.WGramOn:R.string.WGramOff)));
+        final int glassAfter=items.size();
         items.add(UItem.asButton(50,R.drawable.msg_settings,getString(R.string.WGramCustomizeProfile)));
         items.add(UItem.asButton(HISTORY_PAGE,R.drawable.msg_recent,getString(R.string.WGramMessagesPrivacy),getString(WGramConfig.isHistoryEnabled(currentAccount)?R.string.WGramOn:R.string.WGramOff)));
+        final int privacyAfter=items.size();
         if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())){
             items.add(UItem.asButton(ADMIN,R.drawable.wgram_logo,getString(R.string.WGramAdmin)));
             items.add(UItem.asShadow(getString(R.string.WGramAdminHomeInfo)));
@@ -47,6 +49,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(NEWS,R.drawable.wgram_logo,getString(R.string.WGramNews),"@WGramnews"));
         items.add(UItem.asShadow(getString(R.string.WGramNewsInfo)));
 
+        final int detailsStart=items.size();
         if(page==GLASS_PAGE){
         if (preview == null && getContext() != null) preview = new WGramGlassPreview(getContext());
         if (preview != null) items.add(UItem.asCustomShadow(preview));
@@ -102,6 +105,11 @@ public final class WGramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.WGramEmojisInfo)));
         }
 
+        if(items.size()>detailsStart){
+            ArrayList<UItem> details=new ArrayList<>(items.subList(detailsStart,items.size()));
+            items.subList(detailsStart,items.size()).clear();
+            items.addAll(page==GLASS_PAGE?glassAfter:privacyAfter,details);
+        }
     }
 
     @Override protected void onClick(UItem item, View view, int position, float x, float y) {
@@ -246,6 +254,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
             .setMessage(getString(R.string.WGramGhostInfo)).setPositiveButton(getString(R.string.Enable),(d,w)->toggle.run()).setNegativeButton(getString(R.string.Cancel),null).create());
     }
     private void clearHistory() {
+        WGramConfig.historyCleared(currentAccount);
         final long user=getUserConfig().getClientUserId();
         getMessagesStorage().getStorageQueue().postRunnable(()->org.telegram.messenger.wgram.WGramHistory.clear(user));
     }

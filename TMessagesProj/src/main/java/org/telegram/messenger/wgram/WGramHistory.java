@@ -161,20 +161,34 @@ public final class WGramHistory {
         if(dialog<0 && (chat==null || chat.noforwards))return;
         int lower=Integer.MAX_VALUE,upper=0;
         for(MessageObject o:objects)if(o.getId()>0){lower=Math.min(lower,o.getId());upper=Math.max(upper,o.getId());}
-        if(upper==0){lower=0;upper=Integer.MAX_VALUE;}
-        else if(maxId==0){upper=Integer.MAX_VALUE;}
-        else if(loadType==MessagesController.LOAD_BACKWARD){upper=maxId; if(end)lower=0;}
-        else if(loadType==MessagesController.LOAD_FORWARD){lower=maxId;}
+        if(upper==0){
+            lower=0;upper=Integer.MAX_VALUE;
+            if(maxId>0){
+                if(loadType==MessagesController.LOAD_BACKWARD)upper=maxId-1;
+                else if(loadType==MessagesController.LOAD_FORWARD)lower=maxId==Integer.MAX_VALUE?maxId:maxId+1;
+                else lower=upper=maxId;
+            }
+        }else if(loadType==MessagesController.LOAD_BACKWARD){
+            upper=maxId>0?maxId-1:Integer.MAX_VALUE;if(end)lower=0;
+        }else if(loadType==MessagesController.LOAD_FORWARD&&maxId>0){
+            lower=maxId==Integer.MAX_VALUE?maxId:maxId+1;if(end)upper=Integer.MAX_VALUE;
+        }
+        if(lower>upper)return;
         try(SQLiteDatabase db=open(user)){
             prune(db,account);
             ArrayList<MessageObject> archived=new ArrayList<>();
-            try(Cursor c=db.rawQuery("SELECT mid,sender,text,date,outgoing,topic FROM deleted WHERE dialog=? AND mid>=? AND mid<=? ORDER BY mid DESC LIMIT 100",
+            try(Cursor c=db.rawQuery("SELECT mid,sender,text,date,outgoing,topic FROM deleted WHERE dialog=? AND mid>=? AND mid<=? ORDER BY mid " + (loadType==MessagesController.LOAD_FORWARD?"ASC":"DESC") + " LIMIT 100",
                     new String[]{""+dialog,""+lower,""+upper})){
                 while(c.moveToNext())archived.add(restore(account,dialog,c));
             }
             HashSet<Integer> ids=new HashSet<>();for(MessageObject o:archived)ids.add(o.getId());
             for(int i=objects.size()-1;i>=0;i--)if(ids.contains(objects.get(i).getId()))objects.remove(i);
-            objects.addAll(archived);objects.sort((a,b)->Integer.compare(b.getId(),a.getId()));
+            objects.addAll(archived);objects.sort((a,b)->{
+                int left=a.getId(),right=b.getId();
+                if(left>0&&right>0)return Integer.compare(right,left);
+                if(left<0&&right<0)return Integer.compare(left,right);
+                return Integer.compare(b.messageOwner.date,a.messageOwner.date);
+            });
         }catch(Exception e){FileLog.e(e);}
     }
     public static ArrayList<Entry> list(int account, long dialog, String query, int filter) {

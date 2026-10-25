@@ -120,6 +120,17 @@ class ServiceTests(unittest.TestCase):
         bot.handle_bot_message(self.message(100, '/delete'))
         self.assertFalse(self.request('/v1/profiles/100', token=token)[1]['banner'])
 
+    def test_restart_keeps_profile_and_authenticated_session(self):
+        token = self.connect(100)
+        self.request('/v1/me/profile', {'emoji': 456}, token)
+        self.server.shutdown()
+        self.server.server_close()
+        self.server = bot.Server(('127.0.0.1', 0), bot.Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.url = 'http://127.0.0.1:' + str(self.server.server_port)
+        self.assertEqual(self.request('/health')[1], {'service': 'WGram', 'ok': True})
+        self.assertEqual(self.request('/v1/profiles/100', token=token)[1]['emoji'], 456)
+
     def test_malformed_and_unauthenticated_requests(self):
         self.assertEqual(self.request('/v1/profiles/100')[0], 401)
         self.assertEqual(self.request('/v1/auth/start', raw=b'[]')[0], 400)

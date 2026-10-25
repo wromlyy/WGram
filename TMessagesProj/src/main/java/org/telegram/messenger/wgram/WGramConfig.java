@@ -66,6 +66,8 @@ public final class WGramConfig {
     public static void setChatStyle(int style){global().edit().putInt("chat_style",clamp(style,0,3)).apply();}
     public static boolean isHistoryEnabled(int a) { return account(a).getBoolean("history", false); }
     public static void setHistoryEnabled(int a, boolean enabled) { account(a).edit().putBoolean("history", enabled).apply(); }
+    public static int historyRevision(int a){return account(a).getInt("history_revision",0);}
+    public static void historyCleared(int a){account(a).edit().putInt("history_revision",historyRevision(a)+1).apply();}
     public static int getHistoryDays(int a) { return account(a).getInt("history_days", 7) == 30 ? 30 : 7; }
     public static void setHistoryDays(int a, int days) { account(a).edit().putInt("history_days", days == 30 ? 30 : 7).apply(); }
     public static boolean hideRead(int a) { return account(a).getBoolean("ghost_read", false); }

@@ -162,6 +162,8 @@ def dispatch(db, method, path, data, auth):
     now = int(time.time())
     db.execute('DELETE FROM pairs WHERE expires<=?', (now,))
     db.execute('DELETE FROM sessions WHERE expires<=?', (now,))
+    if method == 'GET' and path in ('/', '/health'):
+        return 200, {'service': 'WGram', 'ok': True}
     if method == 'GET' and path == '/v1/config':
         return 200, {'bot_id': BOT['id'], 'bot_username': BOT['username']}
     if method == 'POST' and path == '/v1/auth/start':
@@ -283,6 +285,30 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 32
+
+    def __init__(self, *args, **kwargs):
+        self.slots = threading.BoundedSemaphore(16)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            try:
+                request.sendall(b'HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.slots.release()
 
 
 def main():

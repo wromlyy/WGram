@@ -42,18 +42,25 @@ public final class WGramAdminActivity extends UniversalFragment {
         if(!owner()){
             items.add(UItem.asShadow(getString(R.string.WGramAdminDenied)));return;
         }
+        int expandedAfter=0;
         {
             items.add(UItem.asHeader(getString(R.string.WGramAdmin)));
             items.add(UItem.asShadow(getString(R.string.WGramAdminHomeInfo)));
             items.add(UItem.asButton(101,R.drawable.msg_secret,getString(R.string.WGramAdminNotice)));
             items.add(UItem.asShadow(getString(R.string.WGramAdminNoticeHelp)));
+            if(section==1)expandedAfter=items.size();
             items.add(UItem.asButton(102,R.drawable.wgram_logo,getString(R.string.WGramBadgeEditor)));
             items.add(UItem.asShadow(getString(R.string.WGramAdminBadgeHelp)));
+            if(section==2)expandedAfter=items.size();
             items.add(UItem.asButton(103,R.drawable.msg_settings,getString(R.string.WGramService)));
+            if(section==3)expandedAfter=items.size();
             items.add(UItem.asButton(105,R.drawable.msg_recent,getString(R.string.WGramAdminLog)));
+            if(section==5)expandedAfter=items.size();
             items.add(UItem.asButton(104,R.drawable.msg_settings,getString(R.string.WGramAdminTools)));
+            if(section==4)expandedAfter=items.size();
             items.add(UItem.asShadow(getString(R.string.WGramAdminOwner)));
         }
+        final int detailsStart=items.size();
         if(logView){
             items.add(UItem.asShadow(getString(R.string.WGramAdminLogInfo)));
             try{
@@ -65,7 +72,7 @@ public final class WGramAdminActivity extends UniversalFragment {
                         +DateFormat.getDateTimeInstance().format(new Date(e.optLong("time")))+"\n"+e.optString("reason")));
                 }
             }catch(Exception ignored){}
-            return;
+            moveDetails(items,detailsStart,expandedAfter);return;
         }
         if(section==1 || section==2){
         items.add(UItem.asHeader(getString(R.string.WGramAdminRecipient)));
@@ -115,6 +122,13 @@ public final class WGramAdminActivity extends UniversalFragment {
         items.add(UItem.asButton(24,getString(R.string.WGramDiagnostics)));
         items.add(UItem.asShadow(getString(R.string.WGramAdminLimits)));
         }
+        moveDetails(items,detailsStart,expandedAfter);
+    }
+    private void moveDetails(ArrayList<UItem> items,int start,int after){
+        if(after>0&&items.size()>start){
+            ArrayList<UItem> details=new ArrayList<>(items.subList(start,items.size()));
+            items.subList(start,items.size()).clear();items.addAll(after,details);
+        }
     }
     private void refresh(){if(listView!=null && listView.adapter!=null)listView.adapter.update(true);}
     private void preview(){
@@ -163,7 +177,7 @@ public final class WGramAdminActivity extends UniversalFragment {
             case 11:Bundle args=new Bundle();args.putLong("user_id",target);ChatActivity chat=new ChatActivity(args);chat.setCurrentAccount(currentAccount);presentFragment(chat);return;
             case 12:showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramNoticeType))
                 .setItems(new CharSequence[]{getString(R.string.WGramBlocked),getString(R.string.WGramWarning),getString(R.string.WGramJokeBan)},(d,w)->{action=w==0?4:w==1?1:2;refresh();}).create());return;
-            case 13:WGramUi.input(this,getString(R.string.WGramBanText),reason(),false,1000,t->{reason=t;refresh();});return;
+            case 13:WGramUi.input(this,getString(R.string.WGramBanText),reason(),false,500,t->{reason=t;refresh();});return;
             case 14:final int[] presets={R.string.WGramReasonRules,R.string.WGramReasonSpam,R.string.WGramReasonAbuse,R.string.WGramReasonJoke};
                 CharSequence[] names=new CharSequence[presets.length];for(int i=0;i<names.length;i++)names[i]=getString(presets[i]);
                 showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramReasonPresets)).setItems(names,(d,w)->{reason=getString(presets[w]);refresh();}).create());return;

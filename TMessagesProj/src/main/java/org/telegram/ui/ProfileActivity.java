@@ -7360,6 +7360,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if(position==wgramRefreshRow && wgramRefreshRow>=0){
+            if(!org.telegram.messenger.wgram.WGramService.connected(currentAccount)){
+                presentFragment(new org.telegram.ui.wgram.WGramServiceActivity(currentAccount));return true;
+            }
             org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).invalidate(userId);
             org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).load(userId,()->{updateProfileData(false);updateRowsIds();if(listAdapter!=null)listAdapter.notifyDataSetChanged();});return true;
         }

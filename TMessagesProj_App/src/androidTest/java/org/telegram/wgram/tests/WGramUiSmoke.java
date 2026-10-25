@@ -22,6 +22,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.ProfileActivity;
 import org.telegram.ui.SettingsActivity;
+import org.telegram.ui.ChatActivity;
 import org.telegram.ui.wgram.WGramAdminActivity;
 import org.telegram.ui.wgram.WGramProfileEditorActivity;
 import org.telegram.ui.wgram.WGramSettingsActivity;
@@ -80,6 +81,10 @@ public final class WGramUiSmoke extends Instrumentation {
                 check(page.size()==1 && page.get(0).wgramDeleted,"deleted message restored into empty chat");
                 check(page.get(0).messageOwner.date==m.date && page.get(0).getId()==10,"date and ID preserved");
                 check(page.get(0).messageOwner.from_id.user_id==m.dialog_id,"sender preserved");
+                ArrayList<MessageObject> bounds=new ArrayList<>();
+                WGramHistory.mergeInto(0,m.dialog_id,bounds,5,MessagesController.LOAD_BACKWARD,true);check(bounds.isEmpty(),"older page cannot include newer tombstone");
+                WGramHistory.mergeInto(0,m.dialog_id,bounds,15,MessagesController.LOAD_FORWARD,true);check(bounds.isEmpty(),"newer page cannot include older tombstone");
+                WGramHistory.mergeInto(0,m.dialog_id,bounds,15,MessagesController.LOAD_BACKWARD,true);check(bounds.size()==1,"older empty page restores the right tombstone");
                 WGramHistory.mergeInto(0,m.dialog_id,page,0,0,true);check(page.size()==1,"page merge has no duplicate IDs");
                 WGramHistory.observe(0,Collections.singletonList(m));WGramHistory.deleted(0,m.dialog_id,Collections.singletonList(10),0);
                 check(WGramHistory.list(0,m.dialog_id,"",1).size()==1,"server replay does not duplicate archive");
@@ -114,6 +119,7 @@ public final class WGramUiSmoke extends Instrumentation {
             open("own profile", new ProfileActivity(own));
             Bundle other = new Bundle(); other.putLong("user_id", 9000000001L);
             open("other profile", new ProfileActivity(other));
+            open("private chat", new ChatActivity(other));
             main(()->WGramConfig.setProfileEmoji(0,5368324170671202286L));
             open("profile with local status", new ProfileActivity(own));
             main(()->WGramConfig.setProfileEmoji(0,0));

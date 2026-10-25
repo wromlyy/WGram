@@ -12031,7 +12031,8 @@ public class MessagesController extends BaseController implements NotificationCe
             }
             final long finalHash = hash;
             AndroidUtilities.runOnUIThread(() -> loadMessagesInternal(dialogId, mergeDialogId, false, count, load_type == LOAD_FROM_UNREAD && queryFromServer ? first_unread : max_id, offset_date, false, 0, classGuid, load_type, last_message_id, mode, threadMessageId, loadIndex, first_unread, unread_count, last_date, queryFromServer, mentionsCount, true, needProcess, isTopic, loaderLogger, finalHash));
-            if (messagesRes.messages.isEmpty()) {
+            if (messagesRes.messages.isEmpty() && !(mode==ChatActivity.MODE_DEFAULT && threadMessageId==0
+                    && org.telegram.messenger.wgram.WGramConfig.isHistoryEnabled(currentAccount))) {
                 return;
             }
         }

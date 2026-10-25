@@ -17,7 +17,7 @@ public final class WGramNoticeWire {
             && (peerUser==recipient || peerUser==ADMIN_ID);
     }
     public static String encode(long target, int action, long now, int days, String reason) {
-        if(target<=0 || action<1 || action>4 || reason==null || reason.length()>1000) throw new IllegalArgumentException();
+        if(target<=0 || action<1 || action>4 || reason==null || reason.length()>500) throw new IllegalArgumentException();
         long expires=(action==4 || action==3)?0:now+Math.max(1,Math.min(30,days))*86400L;
         return "WGram · " + (action==4?"блокировка WGram":action==2?"шуточный бан":action==3?"отмена уведомления":"предупреждение") + "\n" + reason
             + "\n\n" + PREFIX + target+":"+action+":"+now+":"+expires+":"+hex(reason.getBytes(StandardCharsets.UTF_8));

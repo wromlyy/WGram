@@ -13,6 +13,8 @@ public final class WGramPrivacyTest {
         check(!WGramNoticeWire.isDirectDelivery(admin,admin,admin,0,12,user),"channel transport rejected");
         check(!WGramNoticeWire.isDirectDelivery(admin,admin,user+1,0,0,user),"other peer rejected");
         check(!WGramNoticeWire.isDirectDelivery(admin,-12,admin,0,0,user),"non-admin dialog rejected");
+        String cjk="漢".repeat(500);
+        check(WGramNoticeWire.encode(user,4,now,7,cjk).length()<=4096,"long Unicode notice fits one Telegram message");
         String body=WGramNoticeWire.encode(user,2,now,7,"Помощь проекту 😀");
         WGramNoticeWire.Notice notice=WGramNoticeWire.decode(body,admin,user,false,false,false,now);
         check(notice!=null && notice.reason.equals("Помощь проекту 😀") && notice.target==user,"64-bit IDs and UTF-8 reason roundtrip");
