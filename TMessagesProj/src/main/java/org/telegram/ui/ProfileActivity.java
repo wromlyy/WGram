@@ -7390,7 +7390,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         });
         org.telegram.messenger.wgram.WGramSharedProfiles.Profile data = org.telegram.messenger.wgram.WGramSharedProfiles.get(currentAccount).peek(userId);
         if (data != null && !data.badgeTitle.isEmpty()) {
-            labels.add(getString(R.string.WGramSpecialBadge)); actions.add(this::showWGramBadge);
+            labels.add(getString(R.string.WGramBadges)); actions.add(this::showWGramBadge);
         }
         if (org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())) {
             labels.add(getString(R.string.WGramAdmin));

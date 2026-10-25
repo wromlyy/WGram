@@ -103,6 +103,7 @@ public final class WGramService {
                 if(status==401)error=auth?"CONNECT_BOT_FIRST":"PAIR_EXPIRED";
                 else if(status==403)error="OWNER_ONLY";
                 else if(status==429)error="TRY_LATER";
+                else if(status==409&&"/v1/admin/badge".equals(path))error="BADGE_LIMIT";
                 else if(status<200||status>=300)error=status==404?"NOT_FOUND":"SERVICE_UNAVAILABLE";
                 else{
                     int max=path.endsWith("/banner")?1500000:65536;

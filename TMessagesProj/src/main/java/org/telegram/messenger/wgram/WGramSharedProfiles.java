@@ -37,6 +37,7 @@ public final class WGramSharedProfiles {
         public String badgeTitle="",badgeDescription="";
         public final ArrayList<Badge> badges = new ArrayList<>();
         public File banner;
+        boolean bannerLoaded;
         long fetched;
     }
     private static boolean cleaned;
@@ -54,6 +55,7 @@ public final class WGramSharedProfiles {
         }
     };
     private final HashSet<Long> loading=new HashSet<>();
+    private final HashSet<Long> wantBanner=new HashSet<>();
     private final HashMap<Long,Long> attempted=new HashMap<>();
     private final HashMap<Long,ArrayList<Runnable>> callbacks=new HashMap<>();
     private WGramSharedProfiles(int account){
@@ -68,7 +70,7 @@ public final class WGramSharedProfiles {
     public static boolean hasPremium(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p!=null&&p.premium;}
     public static long status(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?0:p.badgeEmoji>0?p.badgeEmoji:p.emoji;}
     public static int color(int account,TLRPC.User user){Profile p=user==null?null:get(account).peek(user.id);return p==null?-1:p.color;}
-    public void clear(){generation++;cache.evictAll();loading.clear();callbacks.clear();attempted.clear();}
+    public void clear(){generation++;cache.evictAll();loading.clear();callbacks.clear();attempted.clear();wantBanner.clear();}
     public void invalidate(long user){cache.remove(user);attempted.remove(user);}
     /** Only visible users: coalesced requests, including backoff after network failures. */
     public void ensure(long user) {
@@ -78,12 +80,14 @@ public final class WGramSharedProfiles {
             || last != null && System.currentTimeMillis() - last < 120000) return;
         if (attempted.size() >= 256) attempted.clear();
         attempted.put(user, System.currentTimeMillis());
-        load(user, () -> {});
+        load(user, false, () -> {});
     }
-    public void load(long user,Runnable changed){
+    public void load(long user,Runnable changed){load(user,true,changed);}
+    private void load(long user,boolean withBanner,Runnable changed){
         accountCheck();
         if(user<=0||!WGramService.connected(account)){changed.run();return;}
-        Profile old=cache.get(user);if(old!=null&&System.currentTimeMillis()-old.fetched<120000){changed.run();return;}
+        Profile old=cache.get(user);if(old!=null&&System.currentTimeMillis()-old.fetched<120000&&(!withBanner||old.bannerLoaded)){changed.run();return;}
+        if(withBanner)wantBanner.add(user);
         ArrayList<Runnable> waiting=callbacks.get(user);
         if(waiting==null){waiting=new ArrayList<>();callbacks.put(user,waiting);}waiting.add(changed);
         if(loading.contains(user))return;
@@ -104,7 +108,8 @@ public final class WGramSharedProfiles {
             if(!data.badges.isEmpty()){
                 Badge first=data.badges.get(0);data.badgeEmoji=first.emoji;data.badgeTitle=first.title;data.badgeDescription=first.description;
             }
-            if(json.optBoolean("banner"))WGramService.banner(account,user,(bytes,failure)->{
+            data.bannerLoaded=!json.optBoolean("banner");
+            if(json.optBoolean("banner")&&wantBanner.contains(user))WGramService.banner(account,user,(bytes,failure)->{
                 if(version!=generation)return;
                 Utilities.globalQueue.postRunnable(()->{
                     File file=null;
@@ -117,11 +122,11 @@ public final class WGramSharedProfiles {
                     final File saved=file;
                     AndroidUtilities.runOnUIThread(()->{
                         if(version!=generation){if(saved!=null)saved.delete();return;}
-                        data.banner=saved;complete(user,data,changed);
+                        data.banner=saved!=null?saved:old==null?null:old.banner;data.bannerLoaded=saved!=null;complete(user,data,changed);
                     });
                 });
             });
-            else complete(user,data,changed);
+            else {if(json.optBoolean("banner")&&old!=null)data.banner=old.banner;complete(user,data,changed);}
         });
     }
     private void complete(long user,Profile data,Runnable changed){
@@ -130,7 +135,7 @@ public final class WGramSharedProfiles {
         notifyLoaded(user);
     }
     private void notifyLoaded(long user){
-        loading.remove(user);ArrayList<Runnable> waiting=callbacks.remove(user);
+        loading.remove(user);wantBanner.remove(user);ArrayList<Runnable> waiting=callbacks.remove(user);
         if(waiting!=null)for(Runnable callback:waiting)callback.run();
     }
     private static String clip(String s,int max){return s.length()>max?s.substring(0,max):s;}
