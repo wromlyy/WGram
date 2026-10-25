@@ -170,6 +170,7 @@ android {
     }
 
     defaultConfig {
+        testInstrumentationRunner 'org.telegram.wgram.tests.WGramUiSmoke'
         minSdkVersion 23
         targetSdkVersion 36
         versionName APP_VERSION_NAME

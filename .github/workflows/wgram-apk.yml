@@ -11,6 +11,10 @@ on:
         description: 'Reuse verified native code from the unchanged pinned source tree'
         type: boolean
         default: false
+      run_ui_smoke:
+        description: 'Open profiles and settings on an offline Android emulator'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -117,3 +121,37 @@ jobs:
           name: WGram-debug
           path: TMessagesProj_App/build/outputs/apk/afat/debug/*.apk
           if-no-files-found: error
+      - name: Build offline UI test APK
+        if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
+        run: ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' :TMessagesProj_App:assembleAfatDebugAndroidTest
+      - name: Run offline Android UI checks
+        if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
+        timeout-minutes: 12
+        run: |
+          sdkmanager 'emulator' 'system-images;android-35;google_apis;x86_64'
+          sudo chmod a+rw /dev/kvm
+          echo no | avdmanager create avd --name wgram-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_2
+          mkdir -p wgram-ui-results
+          "$ANDROID_HOME/emulator/emulator" -avd wgram-smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 > wgram-ui-results/emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell cmd connectivity airplane-mode enable
+          adb install -r TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
+          test_apk=$(find TMessagesProj_App/build/outputs/apk/androidTest -name '*.apk' -print -quit)
+          adb install -r "$test_apk"
+          adb logcat -c
+          timeout 180 adb shell am instrument -w org.wgram.messenger.beta.test/org.telegram.wgram.tests.WGramUiSmoke | tee wgram-ui-results/instrumentation.txt
+          adb logcat -d > wgram-ui-results/logcat.txt
+          adb exec-out screencap -p > wgram-ui-results/screen.png
+          grep -q 'WGRAM_SMOKE_OK' wgram-ui-results/instrumentation.txt
+      - name: Collect crash log
+        if: ${{ always() && inputs.run_ui_smoke && !inputs.check_java_only }}
+        run: |
+          mkdir -p wgram-ui-results
+          timeout 10 adb logcat -d -b crash > wgram-ui-results/crash.txt || true
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.run_ui_smoke && !inputs.check_java_only }}
+        with:
+          name: WGram-ui-results
+          path: wgram-ui-results/
