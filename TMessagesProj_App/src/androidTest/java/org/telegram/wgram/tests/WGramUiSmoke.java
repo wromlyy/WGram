@@ -271,6 +271,7 @@ public final class WGramUiSmoke extends Instrumentation {
             open("history settings", new WGramSettingsActivity(0,102));
             open("ghost settings", new WGramSettingsActivity(0,103));
             open("extra settings", new WGramSettingsActivity(0,104));
+            open("custom catalog disconnected", new org.telegram.ui.wgram.WGramCatalogActivity(0));
             open("plugins", new org.telegram.ui.wgram.WGramPluginsActivity(0));
             pluginChecks();
             open("admin", new WGramAdminActivity(0));

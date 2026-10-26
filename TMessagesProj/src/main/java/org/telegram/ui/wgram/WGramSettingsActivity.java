@@ -16,7 +16,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
         TINT=11, HIGHLIGHT=12, REFRACTION=13, RIM=14, SHADOW=15, RESET=16, PRESET=17,
         HISTORY=20, OPEN_HISTORY=21, RETENTION=22, CLEAR_HISTORY=23,
         GHOST_READ=30, GHOST_TYPING=31, CALLS=32, SECONDS=33, COPY_ID=34, GHOST_ONLINE=35, GHOST_STORIES=36, ADMIN=40, NEWS=60, GLASS_PAGE=101, HISTORY_PAGE=102, GHOST_PAGE=103, EXTRAS_PAGE=104, ADVANCED=105, CHAT_STYLE=106;
-    private static final int PLUGINS=61, ADS=70, HIDE_PHONE=71, HIDE_STORY_BAR=72,
+    private static final int CATALOG=62, PLUGINS=61, ADS=70, HIDE_PHONE=71, HIDE_STORY_BAR=72,
         REAR_CAMERA=73, KEEP_SCREEN=74, BIG_EMOJI=75, STICKER_HINTS=76,
         INAPP_CAMERA=77, PAUSE_MUSIC=78, RAISE_LISTEN=79;
     private int page;
@@ -40,6 +40,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
             items.add(UItem.asButton(50,R.drawable.msg_settings,getString(R.string.WGramCustomizeProfile)));
             items.add(UItem.asButton(HISTORY_PAGE,R.drawable.msg_recent,getString(R.string.WGramMessagesPrivacy)));
             items.add(UItem.asButton(EXTRAS_PAGE,R.drawable.msg_settings,getString(R.string.WGramExtras)));
+            items.add(UItem.asButton(CATALOG,R.drawable.msg_add,getString(R.string.WGramCustoms)));
             items.add(UItem.asButton(PLUGINS,R.drawable.msg_add,getString(R.string.WGramPlugins)));
             if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())){
                 items.add(UItem.asButton(ADMIN,R.drawable.wgram_logo,getString(R.string.WGramAdmin)));
@@ -127,6 +128,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
         switch (item.id) {
             case GLASS_PAGE: case HISTORY_PAGE: case GHOST_PAGE: case EXTRAS_PAGE:
                 presentFragment(new WGramSettingsActivity(currentAccount,item.id));return;
+            case CATALOG: presentFragment(new WGramCatalogActivity(currentAccount)); return;
             case PLUGINS: presentFragment(new WGramPluginsActivity(currentAccount)); return;
             case ADS: WGramConfig.setHideAds(currentAccount,!WGramConfig.hideAds(currentAccount)); break;
             case HIDE_PHONE: WGramConfig.setHidePhone(currentAccount,!WGramConfig.hidePhone(currentAccount)); break;

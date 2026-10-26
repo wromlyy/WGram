@@ -81,6 +81,7 @@ public final class WGramService {
             callback.done(parsed,null);
         });
     }
+    public static void customBanner(int account,long id,BytesResult callback){transport(account,"/v1/customs/"+id+"/banner",null,true,callback);}
     public static void banner(int account,long user,BytesResult callback){transport(account,"/v1/profiles/"+user+"/banner",null,true,callback);}
     private static void transport(int account,String path,byte[] body,boolean auth,BytesResult callback){
         final long user=UserConfig.getInstance(account).getClientUserId();

@@ -147,7 +147,12 @@ jobs:
         if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
         timeout-minutes: 12
         run: |
-          sdkmanager 'emulator' 'system-images;android-34;google_apis;x86_64'
+          for wgram_sdk_attempt in 1 2 3; do
+            if sdkmanager 'emulator' 'system-images;android-34;google_apis;x86_64'; then break; fi
+            if [ "$wgram_sdk_attempt" = 3 ]; then exit 1; fi
+            # Retry a corrupt SDK download on this ephemeral runner.
+            rm -rf "$ANDROID_HOME/.temp"
+          done
           sudo chmod a+rw /dev/kvm
           export ANDROID_USER_HOME="$RUNNER_TEMP/wgram-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"

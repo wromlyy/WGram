@@ -5,12 +5,14 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import sqlite3
 import threading
 import time
 import urllib.request
+from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADMIN = 8226881959
@@ -22,6 +24,9 @@ DATA = Path(os.environ.get('WGRAM_DATA_DIR', 'data'))
 DB = DATA / 'wgram.sqlite3'
 GUARD = threading.RLock()
 BOT = {'id': 0, 'username': ''}
+CATALOG_CHAT = os.environ.get('WGRAM_CATALOG_CHAT_ID', '').strip()
+MAX_CUSTOMS_PER_USER = 30
+MAX_CUSTOMS = 1000
 
 
 @contextmanager
@@ -37,6 +42,14 @@ def database():
             CREATE TABLE IF NOT EXISTS banners(uid INTEGER PRIMARY KEY,data BLOB);
             CREATE TABLE IF NOT EXISTS badges(uid INTEGER PRIMARY KEY,payload TEXT);
             CREATE TABLE IF NOT EXISTS state(name TEXT PRIMARY KEY,value TEXT);
+            CREATE TABLE IF NOT EXISTS customs(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,owner INTEGER NOT NULL,kind TEXT NOT NULL,
+                title TEXT NOT NULL,payload TEXT NOT NULL,banner BLOB,status TEXT NOT NULL,
+                created INTEGER NOT NULL,fingerprint TEXT UNIQUE NOT NULL);
+            CREATE INDEX IF NOT EXISTS customs_owner ON customs(owner,id);
+            CREATE INDEX IF NOT EXISTS customs_status ON customs(status,id);
+            CREATE TABLE IF NOT EXISTS catalog_outbox(custom_id INTEGER PRIMARY KEY,delivered INTEGER DEFAULT 0);
+
         ''')
         with conn:
             yield conn
@@ -103,6 +116,169 @@ def banner_bytes(image):
     return image
 
 
+def custom_json(row):
+    return {'id': row['id'], 'owner': row['owner'], 'kind': row['kind'], 'title': row['title'],
+        'payload': json.loads(row['payload']), 'banner': row['banner'] is not None,
+        'status': row['status'], 'created': row['created']}
+
+
+def create_custom(db, owner, kind, title, payload, banner=None):
+    if not isinstance(title, str):
+        raise ValueError('Title must be text')
+    title = title.strip()
+    if not title or len(title) > 60 or any(ord(c) < 32 for c in title):
+        raise ValueError('Title must contain 1–60 characters')
+    if kind not in ('profile', 'banner', 'emoji', 'emoji_pack', 'sticker_pack'):
+        raise ValueError('Unknown custom type')
+    if kind in ('profile', 'banner'):
+        payload = clean_profile(payload)
+        if banner is not None:
+            banner = banner_bytes(banner)
+        if kind == 'banner' and banner is None:
+            raise ValueError('Banner required')
+        if kind == 'profile' and not (banner or payload['premium'] or payload['emoji'] or payload['color'] >= 0):
+            raise ValueError('Choose profile appearance before sharing')
+    elif kind == 'emoji':
+        payload = {'emoji': uid(payload['emoji'])}
+        banner = None
+    else:
+        name = str(payload['short_name'])
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', name):
+            raise ValueError('Invalid sticker set name')
+        payload = {'short_name': name}
+        banner = None
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    fingerprint = digest(str(owner) + ':' + kind + ':' + title + ':' + encoded + ':' + hashlib.sha256(banner or b'').hexdigest())
+    existing = db.execute('SELECT * FROM customs WHERE fingerprint=?', (fingerprint,)).fetchone()
+    if existing:
+        return custom_json(existing)
+    if db.execute('SELECT COUNT(*) FROM customs WHERE owner=?', (owner,)).fetchone()[0] >= MAX_CUSTOMS_PER_USER:
+        return None
+    if db.execute('SELECT COUNT(*) FROM customs').fetchone()[0] >= MAX_CUSTOMS:
+        return None
+    cursor = db.execute('INSERT INTO customs(owner,kind,title,payload,banner,status,created,fingerprint) VALUES(?,?,?,?,?,?,?,?)',
+        (owner, kind, title, encoded, banner, 'pending', int(time.time()), fingerprint))
+    return custom_json(db.execute('SELECT * FROM customs WHERE id=?', (cursor.lastrowid,)).fetchone())
+
+
+def snapshot_custom(db, owner, title, kind='profile'):
+    row = db.execute('SELECT payload FROM profiles WHERE uid=?', (owner,)).fetchone()
+    profile = json.loads(row[0]) if row else clean_profile({})
+    image = db.execute('SELECT data FROM banners WHERE uid=?', (owner,)).fetchone()
+    return create_custom(db, owner, kind, title, profile, bytes(image[0]) if image else None)
+
+
+def moderate_custom(db, actor, custom_id, approve):
+    if actor != ADMIN:
+        return False
+    row = db.execute('SELECT * FROM customs WHERE id=?', (custom_id,)).fetchone()
+    if not row:
+        return False
+    status = 'published' if approve else 'rejected'
+    if row['status'] != status:
+        db.execute('UPDATE customs SET status=? WHERE id=?', (status, custom_id))
+        if approve and CATALOG_CHAT:
+            db.execute('INSERT OR IGNORE INTO catalog_outbox(custom_id) VALUES(?)', (custom_id,))
+    return True
+
+
+def catalog_link(custom_id):
+    name = BOT.get('username', '')
+    return 'https://t.me/' + name + '?start=custom_' + str(custom_id) if re.fullmatch(r'[A-Za-z0-9_]{5,32}', name) else ''
+
+
+def deliver_catalog():
+    if not CATALOG_CHAT:
+        return
+    with GUARD, database() as db:
+        rows = db.execute("SELECT c.* FROM catalog_outbox o JOIN customs c ON c.id=o.custom_id WHERE o.delivered=0 AND c.status='published' ORDER BY c.id LIMIT 5").fetchall()
+    for row in rows:
+        item = custom_json(row)
+        link = catalog_link(item['id'])
+        api('sendMessage', {'chat_id': CATALOG_CHAT, 'text': item['title'] + '\nАвтор: ' + str(item['owner']) + '\n' + link,
+            'reply_markup': {'inline_keyboard': [[{'text': 'Открыть кастомку', 'url': link}]]}})
+        with GUARD, database() as db:
+            db.execute('UPDATE catalog_outbox SET delivered=1 WHERE custom_id=?', (item['id'],))
+
+
+def handle_custom_command(sender, text):
+    command, _, argument = text.partition(' ')
+    if command == '/start' and argument.startswith('custom_'):
+        try:
+            custom_id = uid(argument[7:])
+        except (ValueError, TypeError):
+            return 'Кастомка не найдена.'
+        with GUARD, database() as db:
+            row = db.execute("SELECT * FROM customs WHERE id=? AND (status='published' OR owner=? OR ?=?)", (custom_id, sender, sender, ADMIN)).fetchone()
+            if not row:
+                return 'Кастомка не найдена.'
+            item = custom_json(row)
+        content = item['title'] + '\nАвтор: ' + str(item['owner']) + '\nСтатус: ' + item['status']
+        if item['kind'] in ('emoji_pack', 'sticker_pack'):
+            content += '\nhttps://t.me/' + ('addemoji/' if item['kind'] == 'emoji_pack' else 'addstickers/') + item['payload']['short_name']
+        else:
+            content += '\nОткрой каталог кастомок в настройках WGram, чтобы применить.'
+        return content
+    if text in ('/customs', '/start customs', '/help'):
+        return ('Общий каталог WGram. Всё отправленное на публикацию видно другим после одобрения.\n'
+            '/submit Название — поделиться сохранённым профилем\n'
+            'Фото с подписью /custom Название — поделиться баннером\n'
+            '/emoji ID Название — добавить эмодзи\n'
+            'Ссылка t.me/addemoji/... или t.me/addstickers/... — добавить набор\n'
+            '/catalog — общий каталог\n/mine — мои работы\n/remove ID — удалить свою работу')
+    if command in ('/catalog', '/mine', '/pending'):
+        with GUARD, database() as db:
+            if command == '/pending':
+                if sender != ADMIN:
+                    return 'Проверка работ доступна владельцу WGram.'
+                rows = db.execute("SELECT * FROM customs WHERE status='pending' ORDER BY id LIMIT 20").fetchall()
+            elif command == '/mine':
+                rows = db.execute('SELECT * FROM customs WHERE owner=? ORDER BY id DESC LIMIT 30', (sender,)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM customs WHERE status='published' ORDER BY id DESC LIMIT 20").fetchall()
+        return '\n\n'.join(str(row['id']) + '. ' + row['title'] + ' [' + row['status'] + ']\n' + catalog_link(row['id']) for row in rows) or 'Пока нет работ. /customs — как добавить.'
+    if command in ('/approve', '/reject', '/remove'):
+        try:
+            custom_id = uid(argument)
+        except (ValueError, TypeError):
+            return 'Укажи числовой ID работы.'
+        with GUARD, database() as db:
+            if command == '/remove':
+                removed = db.execute('DELETE FROM customs WHERE id=? AND (owner=? OR ?=?)', (custom_id, sender, sender, ADMIN)).rowcount
+                db.execute('DELETE FROM catalog_outbox WHERE custom_id=? AND NOT EXISTS(SELECT 1 FROM customs WHERE id=?)', (custom_id, custom_id))
+                return 'Работа удалена из каталога.' if removed else 'Работа не найдена или принадлежит другому автору.'
+            if sender != ADMIN:
+                return 'Одобрение работ доступно владельцу WGram.'
+            success = moderate_custom(db, sender, custom_id, command == '/approve')
+        return ('Работа одобрена.' if command == '/approve' else 'Работа отклонена.') if success else 'Работа не найдена.'
+    if command in ('/submit', '/emoji'):
+        try:
+            with GUARD, database() as db:
+                if command == '/submit':
+                    item = snapshot_custom(db, sender, argument)
+                else:
+                    emoji, _, title = argument.partition(' ')
+                    item = create_custom(db, sender, 'emoji', title, {'emoji': uid(emoji)})
+        except (ValueError, KeyError, TypeError):
+            return 'Не удалось добавить. Для /submit сначала опубликуй профиль из WGram. Для /emoji укажи ID и название (до 60 символов).'
+        return 'Лимит работ достигнут. Удали ненужные через /mine.' if item is None else 'Работа #' + str(item['id']) + ' отправлена на проверку. /mine — мои работы.'
+    match = re.fullmatch(r'(?:https?://)?t\.me/(addemoji|addstickers)/([A-Za-z][A-Za-z0-9_]{0,63})', text.strip())
+    if match:
+        kind = 'emoji_pack' if match[1] == 'addemoji' else 'sticker_pack'
+        try:
+            info = api('getStickerSet', {'name': match[2]})
+            if (info.get('sticker_type') == 'custom_emoji') != (kind == 'emoji_pack'):
+                return 'Тип ссылки не совпадает с набором.'
+            if not info.get('title'):
+                return 'Набор не найден.'
+            with GUARD, database() as db:
+                item = create_custom(db, sender, kind, str(info['title'])[:60], {'short_name': match[2]})
+        except Exception:
+            return 'Не удалось проверить набор. Пришли прямую ссылку t.me/addemoji/... или t.me/addstickers/...'
+        return 'Лимит работ достигнут.' if item is None else 'Набор #' + str(item['id']) + ' отправлен на проверку.'
+    return None
+
+
 def handle_bot_message(message):
     sender = message.get('from', {}).get('id', 0)
     if not sender or message.get('chat', {}).get('type') != 'private' or message['chat']['id'] != sender:
@@ -122,6 +298,10 @@ def handle_bot_message(message):
                 reply = 'WGram подключён. Вернись в приложение. Пароли и коды Telegram боту не нужны.'
         if reply:
             api('sendMessage', {'chat_id': sender, 'text': reply})
+        return
+    custom_reply = handle_custom_command(sender, text)
+    if custom_reply is not None:
+        api('sendMessage', {'chat_id': sender, 'text': custom_reply})
         return
     if text == '/delete':
         with GUARD, database() as db:
@@ -144,11 +324,20 @@ def handle_bot_message(message):
             except ValueError:
                 reply = 'Не удалось прочитать баннер. Отправь фото до 1,5 МБ.'
             else:
-                with GUARD, database() as db:
-                    db.execute('INSERT OR REPLACE INTO banners VALUES(?,?)', (sender, image))
-                reply = 'Баннер сохранён для твоего профиля WGram. Он доступен подключённым пользователям WGram. Публичной группы нет. /delete — удалить оформление.'
+                caption = str(message.get('caption', ''))
+                if caption.startswith('/custom '):
+                    try:
+                        with GUARD, database() as db:
+                            item = create_custom(db, sender, 'banner', caption[8:], {}, image)
+                        reply = 'Лимит работ достигнут.' if item is None else 'Баннер #' + str(item['id']) + ' отправлен на проверку. /mine — мои работы.'
+                    except ValueError:
+                        reply = 'Укажи название баннера до 60 символов после /custom.'
+                else:
+                    with GUARD, database() as db:
+                        db.execute('INSERT OR REPLACE INTO banners VALUES(?,?)', (sender, image))
+                    reply = 'Баннер сохранён для профиля WGram. Чтобы поделиться им со всеми, отправь фото с подписью /custom Название. /delete — удалить оформление.'
     else:
-        reply = 'Сервис профилей WGram. Подключись из настроек мода, затем отправь сюда фото для баннера. /delete — удалить оформление. Новости: @WGramnews. Коды входа не присылай.'
+        reply = 'Профили и каталог WGram. /customs — добавить свою работу, /catalog — общий каталог. Подключись из настроек мода, чтобы применять оформление. Фото без команды сохраняется в твой профиль. /delete — удалить оформление. Коды входа не присылай.'
     api('sendMessage', {'chat_id': sender, 'text': reply})
 
 
@@ -159,6 +348,10 @@ def poll():
     while True:
         try:
             updates = api('getUpdates', {'offset': offset, 'timeout': 25, 'allowed_updates': ['message']})
+            try:
+                deliver_catalog()
+            except Exception:
+                print('Catalog post could not be delivered; will retry.', flush=True)
             for update in updates:
                 try:
                     if 'message' in update:
@@ -176,6 +369,8 @@ def poll():
 
 
 def dispatch(db, method, path, data, auth):
+    query = parse_qs(urlsplit(path).query)
+    path = urlsplit(path).path
     now = int(time.time())
     db.execute('DELETE FROM pairs WHERE expires<=?', (now,))
     db.execute('DELETE FROM sessions WHERE expires<=?', (now,))
@@ -210,6 +405,45 @@ def dispatch(db, method, path, data, auth):
     if method == 'POST' and path == '/v1/auth/logout':
         db.execute('DELETE FROM sessions WHERE hash=?', (digest(auth[7:]),))
         return 200, {'ok': True}
+    if path == '/v1/customs' and method == 'GET':
+        mine = query.get('mine', ['0'])[0] == '1'
+        before = uid(query['before'][0]) if 'before' in query else 2**63-1
+        kind = query.get('kind', [''])[0]
+        condition, params = ('owner=?', [user]) if mine else ("status='published'", [])
+        condition += ' AND id<?'
+        params.append(before)
+        if kind:
+            condition += ' AND kind=?'
+            params.append(kind)
+        rows = db.execute('SELECT * FROM customs WHERE ' + condition + ' ORDER BY id DESC LIMIT 21', params).fetchall()
+        return 200, {'items': [custom_json(row) for row in rows[:20]], 'next': rows[19]['id'] if len(rows) > 20 else 0}
+    if path == '/v1/customs' and method == 'POST':
+        kind = data.get('kind', 'profile')
+        if kind not in ('profile', 'banner', 'emoji'):
+            return 400, {'error': 'SUBMIT_PACK_TO_BOT'}
+        try:
+            item = (create_custom(db, user, kind, data['title'], {'emoji': uid(data['emoji'])}) if kind == 'emoji'
+                else snapshot_custom(db, user, data['title'], kind))
+        except (ValueError, KeyError, TypeError):
+            return 400, {'error': 'INVALID_CUSTOM'}
+        return (200, {'item': item}) if item else (429, {'error': 'CUSTOM_LIMIT'})
+    if path.startswith('/v1/customs/'):
+        parts = path.split('/')
+        custom_id = uid(parts[3])
+        row = db.execute('SELECT * FROM customs WHERE id=?', (custom_id,)).fetchone()
+        if row is None or row['status'] != 'published' and row['owner'] != user and user != ADMIN:
+            return 404, {'error': 'NOT_FOUND'}
+        if len(parts) == 4 and method == 'GET':
+            return 200, {'item': custom_json(row)}
+        if len(parts) == 5 and parts[4] == 'banner' and method == 'GET':
+            return (200, bytes(row['banner'])) if row['banner'] is not None else (404, {'error': 'NO_BANNER'})
+        if len(parts) == 5 and parts[4] == 'delete' and method == 'POST':
+            if row['owner'] != user and user != ADMIN:
+                return 403, {'error': 'OWNER_ONLY'}
+            db.execute('DELETE FROM customs WHERE id=?', (custom_id,))
+            db.execute('DELETE FROM catalog_outbox WHERE custom_id=?', (custom_id,))
+            return 200, {'ok': True}
+        return 404, {'error': 'NOT_FOUND'}
     if method == 'GET' and path.startswith('/v1/profiles/'):
         parts = path.split('/')
         target = uid(parts[3])
