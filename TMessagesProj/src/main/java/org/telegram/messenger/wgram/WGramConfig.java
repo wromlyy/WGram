@@ -30,6 +30,16 @@ public final class WGramConfig {
         }
         return accountPreferences[account];
     }
+    public static boolean hideAds(int a) { return account(a).getBoolean("hide_ads", false); }
+    public static void setHideAds(int a, boolean value) { account(a).edit().putBoolean("hide_ads", value).apply(); }
+    public static boolean hidePhone(int a) { return account(a).getBoolean("hide_phone", false); }
+    public static void setHidePhone(int a, boolean value) { account(a).edit().putBoolean("hide_phone", value).apply(); }
+    public static boolean hideStoryBar(int a) { return account(a).getBoolean("hide_story_bar", false); }
+    public static void setHideStoryBar(int a, boolean value) { account(a).edit().putBoolean("hide_story_bar", value).apply(); }
+    public static boolean keepScreenOn(int a) { return account(a).getBoolean("keep_screen_on", false); }
+    public static void setKeepScreenOn(int a, boolean value) { account(a).edit().putBoolean("keep_screen_on", value).apply(); }
+    public static boolean rearVideoCamera() { return global().getBoolean("rear_video_camera", false); }
+    public static void setRearVideoCamera(boolean value) { global().edit().putBoolean("rear_video_camera", value).apply(); }
     public static boolean isGlassEnabled() { return global().getBoolean("glass_enabled", true); }
     public static void setGlassEnabled(boolean enabled) { global().edit().putBoolean("glass_enabled", enabled).apply(); }
     public static int getGlassMode() { return global().getInt("glass_mode", GLASS_AUTO); }

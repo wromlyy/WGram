@@ -182,6 +182,56 @@ public final class WGramUiSmoke extends Instrumentation {
             return fragmentView=root;
         }};
     }
+    private String pluginCall(String operation, Object... args) throws Exception {
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+        String[] result = new String[2];
+        org.telegram.messenger.wgram.WGramPlugins.execute(operation, (json,error) -> {
+            result[0]=json;result[1]=error;ready.countDown();
+        }, args);
+        if(!ready.await(30,java.util.concurrent.TimeUnit.SECONDS))throw new AssertionError("Plugin operation timed out: "+operation);
+        if(result[1]!=null)throw new AssertionError(result[1]);
+        return result[0];
+    }
+    private void pluginMaster(boolean enabled) throws Exception {
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+        String[] error = new String[1];
+        org.telegram.messenger.wgram.WGramPlugins.setEnabled(enabled,(json,failure)->{error[0]=failure;ready.countDown();});
+        if(!ready.await(30,java.util.concurrent.TimeUnit.SECONDS))throw new AssertionError("Plugin engine timed out");
+        if(error[0]!=null)throw new AssertionError(error[0]);
+    }
+    private void pluginChecks() throws Exception {
+        File source=File.createTempFile("plugin-smoke-", ".py",getTargetContext().getCacheDir());
+        String code="from base_plugin import BasePlugin, HookResult, HookStrategy\n"
+            +"__id__ = 'wgram_smoke'\n__name__ = 'Smoke plugin'\n"
+            +"class SmokePlugin(BasePlugin):\n"
+            +"    def on_plugin_load(self):\n        self.add_on_send_message_hook()\n"
+            +"    def on_send_message_hook(self, account, params):\n"
+            +"        params.message += ' #' + str(account) + ':' + str(params.peer)\n"
+            +"        return HookResult(HookStrategy.MODIFY, params)\n";
+        try(FileOutputStream output=new FileOutputStream(source)){output.write(code.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+        try{
+            check(!org.telegram.messenger.wgram.WGramPlugins.enabled(),"Python engine starts disabled");
+            org.json.JSONObject metadata=new org.json.JSONObject(pluginCall("inspect",source.getAbsolutePath()));
+            check(metadata.getString("id").equals("wgram_smoke"),"Python runtime parses metadata on Android");
+            pluginCall("install",source.getAbsolutePath(),metadata.getString("sha256"));
+            check(!new org.json.JSONArray(pluginCall("list_plugins")).getJSONObject(0).getBoolean("enabled"),"Android plugin install does not execute code");
+            pluginMaster(true);
+            pluginCall("enable","wgram_smoke",true);
+            check(new org.json.JSONArray(pluginCall("list_plugins")).getJSONObject(0).getBoolean("running"),"Python plugin lifecycle runs on Android");
+            org.telegram.messenger.SendMessagesHelper.SendMessageParams params=new org.telegram.messenger.SendMessagesHelper.SendMessageParams();
+            params.message="Hello";params.peer=9000000001L;
+            params.entities=new ArrayList<>();params.entities.add(new TLRPC.TL_messageEntityBold());
+            check(org.telegram.messenger.wgram.WGramPlugins.beforeSend(0,params),"Android send hook allows modified message");
+            check(params.message.equals("Hello #0:9000000001"),"Java Python bridge preserves 64-bit peer and account");
+            check(params.entities==null,"changed text drops stale formatting offsets");
+            params.message="secret";params.peer=org.telegram.messenger.DialogObject.makeEncryptedDialogId(12);
+            check(org.telegram.messenger.wgram.WGramPlugins.beforeSend(0,params)&&params.message.equals("secret"),"secret chat bypasses send hooks");
+            pluginCall("enable","wgram_smoke",false);
+            check(!new org.json.JSONArray(pluginCall("list_plugins")).getJSONObject(0).getBoolean("running"),"Android plugin unloads");
+            pluginCall("remove","wgram_smoke");
+            check(new org.json.JSONArray(pluginCall("list_plugins")).length()==0,"Android plugin removal cleans list");
+        }finally{source.delete();pluginMaster(false);}
+    }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
@@ -221,6 +271,8 @@ public final class WGramUiSmoke extends Instrumentation {
             open("history settings", new WGramSettingsActivity(0,102));
             open("ghost settings", new WGramSettingsActivity(0,103));
             open("extra settings", new WGramSettingsActivity(0,104));
+            open("plugins", new org.telegram.ui.wgram.WGramPluginsActivity(0));
+            pluginChecks();
             open("admin", new WGramAdminActivity(0));
             for(int section=1;section<=5;section++)open("admin section "+section,new WGramAdminActivity(0,9000000001L,section));
             open("profile editor", new WGramProfileEditorActivity(0));

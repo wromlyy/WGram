@@ -1,29 +1,24 @@
 package org.telegram.ui.wgram;
 
 import static org.telegram.messenger.LocaleController.getString;
-import android.os.Bundle;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.ForegroundColorSpan;
 import android.view.View;
-import org.telegram.messenger.MessagesController;
-import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.wgram.WGramConfig;
 import org.telegram.ui.ActionBar.AlertDialog;
-import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
-import org.telegram.ui.ProfileActivity;
 import java.util.ArrayList;
 
 public final class WGramSettingsActivity extends UniversalFragment {
     private static final int GLASS = 1, MODE = 2, OPACITY = 3, APPLY = 4,
-        PREMIUM = 5, COLOR = 6, EMOJI = 7, PROFILE = 8, EMOJIS = 9, CLEAR_EMOJI = 10,
+        EMOJIS = 9,
         TINT=11, HIGHLIGHT=12, REFRACTION=13, RIM=14, SHADOW=15, RESET=16, PRESET=17,
         HISTORY=20, OPEN_HISTORY=21, RETENTION=22, CLEAR_HISTORY=23,
         GHOST_READ=30, GHOST_TYPING=31, CALLS=32, SECONDS=33, COPY_ID=34, GHOST_ONLINE=35, GHOST_STORIES=36, ADMIN=40, NEWS=60, GLASS_PAGE=101, HISTORY_PAGE=102, GHOST_PAGE=103, EXTRAS_PAGE=104, ADVANCED=105, CHAT_STYLE=106;
+    private static final int PLUGINS=61, ADS=70, HIDE_PHONE=71, HIDE_STORY_BAR=72,
+        REAR_CAMERA=73, KEEP_SCREEN=74, BIG_EMOJI=75, STICKER_HINTS=76,
+        INAPP_CAMERA=77, PAUSE_MUSIC=78, RAISE_LISTEN=79;
     private int page;
     private WGramChatStylePreview chatPreview;
     private boolean advanced;
@@ -32,24 +27,27 @@ public final class WGramSettingsActivity extends UniversalFragment {
     public WGramSettingsActivity(int account) { this(account, 0); }
     public WGramSettingsActivity(int account, int page) { setCurrentAccount(account); this.page=page; }
 
-    @Override protected CharSequence getTitle(){return getString(R.string.WGramSettings);}
+    @Override protected CharSequence getTitle(){
+        return getString(page==GLASS_PAGE?R.string.WGramGlassHeader:page==HISTORY_PAGE?R.string.WGramMessagesPrivacy:
+            page==GHOST_PAGE?R.string.WGramGhost:page==EXTRAS_PAGE?R.string.WGramExtras:R.string.WGramSettings);
+    }
 
     @Override protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        items.add(UItem.asHeader("WGram 0.3"));
-        items.add(UItem.asShadow(getString(R.string.WGramSettingsWelcome)));
-        items.add(UItem.asButton(GLASS_PAGE,R.drawable.wgram_logo,getString(R.string.WGramGlassHeader),getString(WGramConfig.isGlassEnabled()?R.string.WGramOn:R.string.WGramOff)));
-        final int glassAfter=items.size();
-        items.add(UItem.asButton(50,R.drawable.msg_settings,getString(R.string.WGramCustomizeProfile)));
-        items.add(UItem.asButton(HISTORY_PAGE,R.drawable.msg_recent,getString(R.string.WGramMessagesPrivacy),getString(WGramConfig.isHistoryEnabled(currentAccount)?R.string.WGramOn:R.string.WGramOff)));
-        final int privacyAfter=items.size();
-        if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())){
-            items.add(UItem.asButton(ADMIN,R.drawable.wgram_logo,getString(R.string.WGramAdmin)));
-            items.add(UItem.asShadow(getString(R.string.WGramAdminHomeInfo)));
+        if(page==0){
+            items.add(UItem.asHeader("WGram 0.4"));
+            items.add(UItem.asShadow(getString(R.string.WGramSettingsWelcome)));
+            items.add(UItem.asButton(GLASS_PAGE,R.drawable.wgram_logo,getString(R.string.WGramGlassHeader)));
+            items.add(UItem.asButton(50,R.drawable.msg_settings,getString(R.string.WGramCustomizeProfile)));
+            items.add(UItem.asButton(HISTORY_PAGE,R.drawable.msg_recent,getString(R.string.WGramMessagesPrivacy)));
+            items.add(UItem.asButton(EXTRAS_PAGE,R.drawable.msg_settings,getString(R.string.WGramExtras)));
+            items.add(UItem.asButton(PLUGINS,R.drawable.msg_add,getString(R.string.WGramPlugins)));
+            if(org.telegram.messenger.wgram.WGramNoticeWire.isAdmin(getUserConfig().getClientUserId())){
+                items.add(UItem.asButton(ADMIN,R.drawable.wgram_logo,getString(R.string.WGramAdmin)));
+            }
+            items.add(UItem.asShadow(""));
+            items.add(UItem.asButton(NEWS,R.drawable.wgram_logo,getString(R.string.WGramNews),"@WGramnews"));
+            return;
         }
-        items.add(UItem.asButton(NEWS,R.drawable.wgram_logo,getString(R.string.WGramNews),"@WGramnews"));
-        items.add(UItem.asShadow(getString(R.string.WGramNewsInfo)));
-
-        final int detailsStart=items.size();
         if(page==GLASS_PAGE){
         if (preview == null && getContext() != null) preview = new WGramGlassPreview(getContext());
         if (preview != null) items.add(UItem.asCustomShadow(preview));
@@ -96,7 +94,7 @@ public final class WGramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(GHOST_STORIES,getString(R.string.WGramGhostStories)).setChecked(WGramConfig.hideStories(currentAccount)));
         items.add(UItem.asShadow(getString(R.string.WGramGhostInfo)));
         }
-        if(page==HISTORY_PAGE || page==EXTRAS_PAGE){
+        if(page==EXTRAS_PAGE){
         items.add(UItem.asHeader(getString(R.string.WGramExtras)));
         items.add(UItem.asCheck(CALLS,getString(R.string.WGramConfirmCalls)).setChecked(WGramConfig.confirmCalls(currentAccount)));
         items.add(UItem.asCheck(SECONDS,getString(R.string.WGramTimeSeconds)).setChecked(WGramConfig.showSeconds(currentAccount)));
@@ -105,17 +103,41 @@ public final class WGramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.WGramEmojisInfo)));
         }
 
-        if(items.size()>detailsStart){
-            ArrayList<UItem> details=new ArrayList<>(items.subList(detailsStart,items.size()));
-            items.subList(detailsStart,items.size()).clear();
-            items.addAll(page==GLASS_PAGE?glassAfter:privacyAfter,details);
+        if(page==HISTORY_PAGE){
+            items.add(UItem.asCheck(ADS,getString(R.string.WGramHideAds)).setChecked(WGramConfig.hideAds(currentAccount)));
+            items.add(UItem.asCheck(HIDE_PHONE,getString(R.string.WGramHidePhone)).setChecked(WGramConfig.hidePhone(currentAccount)));
+            items.add(UItem.asShadow(getString(R.string.WGramHidePhoneInfo)));
+        }
+        if(page==EXTRAS_PAGE){
+            items.add(UItem.asHeader(getString(R.string.WGramInterface)));
+            items.add(UItem.asCheck(HIDE_STORY_BAR,getString(R.string.WGramHideStoryBar)).setChecked(WGramConfig.hideStoryBar(currentAccount)));
+            items.add(UItem.asCheck(KEEP_SCREEN,getString(R.string.WGramKeepScreen)).setChecked(WGramConfig.keepScreenOn(currentAccount)));
+            items.add(UItem.asCheck(BIG_EMOJI,getString(R.string.WGramBigEmoji)).setChecked(org.telegram.messenger.SharedConfig.allowBigEmoji));
+            items.add(UItem.asCheck(STICKER_HINTS,getString(R.string.WGramStickerHints)).setChecked(org.telegram.messenger.SharedConfig.suggestStickers!=2));
+            items.add(UItem.asHeader(getString(R.string.WGramMedia)));
+            items.add(UItem.asCheck(REAR_CAMERA,getString(R.string.WGramRearCamera)).setChecked(WGramConfig.rearVideoCamera()));
+            items.add(UItem.asCheck(INAPP_CAMERA,getString(R.string.WGramInAppCamera)).setChecked(org.telegram.messenger.SharedConfig.inappCamera));
+            items.add(UItem.asCheck(PAUSE_MUSIC,getString(R.string.WGramPauseMusic)).setChecked(org.telegram.messenger.SharedConfig.pauseMusicOnRecord));
+            items.add(UItem.asCheck(RAISE_LISTEN,getString(R.string.WGramRaiseListen)).setChecked(org.telegram.messenger.SharedConfig.raiseToListen));
+            items.add(UItem.asShadow(getString(R.string.WGramGlobalMediaInfo)));
         }
     }
 
     @Override protected void onClick(UItem item, View view, int position, float x, float y) {
         switch (item.id) {
             case GLASS_PAGE: case HISTORY_PAGE: case GHOST_PAGE: case EXTRAS_PAGE:
-                page=page==item.id?0:item.id;refresh();return;
+                presentFragment(new WGramSettingsActivity(currentAccount,item.id));return;
+            case PLUGINS: presentFragment(new WGramPluginsActivity(currentAccount)); return;
+            case ADS: WGramConfig.setHideAds(currentAccount,!WGramConfig.hideAds(currentAccount)); break;
+            case HIDE_PHONE: WGramConfig.setHidePhone(currentAccount,!WGramConfig.hidePhone(currentAccount)); break;
+            case HIDE_STORY_BAR: WGramConfig.setHideStoryBar(currentAccount,!WGramConfig.hideStoryBar(currentAccount)); break;
+            case KEEP_SCREEN: WGramConfig.setKeepScreenOn(currentAccount,!WGramConfig.keepScreenOn(currentAccount)); break;
+            case REAR_CAMERA: WGramConfig.setRearVideoCamera(!WGramConfig.rearVideoCamera()); break;
+            case BIG_EMOJI: org.telegram.messenger.SharedConfig.toggleBigEmoji(); break;
+            case STICKER_HINTS: org.telegram.messenger.SharedConfig.setSuggestStickers(org.telegram.messenger.SharedConfig.suggestStickers==2?0:2); break;
+            case INAPP_CAMERA: org.telegram.messenger.SharedConfig.toggleInappCamera(); break;
+            case PAUSE_MUSIC: org.telegram.messenger.SharedConfig.togglePauseMusicOnRecord(); break;
+            case RAISE_LISTEN: org.telegram.messenger.SharedConfig.toggleRaiseToListen(); break;
             case CHAT_STYLE:
                 showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramChatStyles))
                     .setItems(styleNames(),(d,w)->{WGramConfig.setChatStyle(w);if(chatPreview!=null)chatPreview.invalidate();refresh();}).create());return;
@@ -183,57 +205,12 @@ public final class WGramSettingsActivity extends UniversalFragment {
             case APPLY:
                 if (getParentLayout() != null) getParentLayout().rebuildAllFragmentViews(true, true);
                 return;
-            case PREMIUM:
-                WGramConfig.setVisualPremiumEnabled(currentAccount, !WGramConfig.isVisualPremiumEnabled(currentAccount));
-                break;
-            case COLOR:
-                showColors();
-                return;
-            case EMOJI:
-                presentFragment(new WGramEmojiPickerActivity(currentAccount));
-                return;
-            case CLEAR_EMOJI:
-                WGramConfig.setProfileEmoji(currentAccount, 0);
-                break;
-            case PROFILE:
-                Bundle args = new Bundle();
-                args.putLong("user_id", getUserConfig().getClientUserId());
-                ProfileActivity profile = new ProfileActivity(args);
-                profile.setCurrentAccount(currentAccount);
-                presentFragment(profile);
-                return;
             case EMOJIS:
                 WGramConfig.setEmojisEnabled(currentAccount, !WGramConfig.areEmojisEnabled(currentAccount));
                 break;
             default: return;
         }
-        if(item.id==PREMIUM || item.id==CLEAR_EMOJI)profileChanged();
         refresh();
-    }
-
-    private void showColors() {
-        ArrayList<CharSequence> names = new ArrayList<>();
-        ArrayList<Integer> ids = new ArrayList<>();
-        names.add(getString(R.string.WGramDefault));
-        ids.add(-1);
-        MessagesController.PeerColors palette = getMessagesController().profilePeerColors;
-        if (palette != null) {
-            for (MessagesController.PeerColor color : palette.colors) {
-                SpannableString swatch = new SpannableString("●  ●  ●");
-                swatch.setSpan(new ForegroundColorSpan(color.getColor1(Theme.isCurrentThemeDark())), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                swatch.setSpan(new ForegroundColorSpan(color.getColor2(Theme.isCurrentThemeDark())), 3, 4, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                swatch.setSpan(new ForegroundColorSpan(color.getColor3(Theme.isCurrentThemeDark())), 6, 7, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                names.add(swatch);
-                ids.add(color.id);
-            }
-        }
-        showDialog(new AlertDialog.Builder(getParentActivity())
-            .setTitle(getString(R.string.WGramProfileColor))
-            .setItems(names.toArray(new CharSequence[0]), (dialog, which) -> {
-                WGramConfig.setProfileColor(currentAccount, ids.get(which));
-                profileChanged();
-                refresh();
-            }).create());
     }
 
     private CharSequence[] styleNames(){return new CharSequence[]{getString(R.string.WGramChatClassic),getString(R.string.WGramChatDiscord),getString(R.string.WGramChatRound),getString(R.string.WGramChatCompact)};}
@@ -267,9 +244,6 @@ public final class WGramSettingsActivity extends UniversalFragment {
             .setNegativeButton(getString(R.string.Cancel),null).create());
     }
 
-    private void profileChanged() {
-        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
-    }
     private void refresh() {
         if (listView != null && listView.adapter != null) listView.adapter.update(true);
         if (fragmentView != null) fragmentView.invalidate();

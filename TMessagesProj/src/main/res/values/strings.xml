@@ -11675,7 +11675,7 @@
 <string name="WGramAdminNoticeInfo">Уведомление действует только в WGram и не меняет права Telegram.</string><string name="WGramOpenChat">Открыть чат</string><string name="WGramUserId">ID пользователя</string>
     <string name="WGramRefreshProfile">Обновить оформление WGram</string>
     <string name="WGramMainSettings">Настройки WGram</string>
-    <string name="WGramSettingsWelcome">Оформление, сообщения и приватность — выбери нужный раздел.</string>
+    <string name="WGramSettingsWelcome">Оформление, приватность, камера и плагины — выбери раздел.</string>
     <string name="WGramSectionsInfo">В каждом разделе есть короткое объяснение. Настройки сохраняются для текущего аккаунта.</string>
     <string name="WGramOn">Включено</string>
     <string name="WGramOff">Выключено</string>
@@ -11737,4 +11737,31 @@
     <string name="WGramBadges">Значки WGram</string>
     <string name="WGramBadgeLimit">У пользователя уже 3 значка. Сначала сними один из них.</string>
     <string name="WGramNoBadges">У пользователя пока нет значков WGram.</string>
+    <string name="WGramPlugins">Плагины</string>
+    <string name="WGramPluginEngine">Включить движок плагинов</string>
+    <string name="WGramPluginTrust">Плагины выполняют код с правами WGram и могут получить доступ к аккаунтам и сообщениям. Включай только код от авторов, которым доверяешь. Переключатель действует на все аккаунты.</string>
+    <string name="WGramPluginImport">Добавить из файла</string>
+    <string name="WGramPluginFormat">Python-файлы .py или .plugin для WGram API 1. Совместимость со всем SDK exteraGram пока отсутствует.</string>
+    <string name="WGramPluginInstalled">Установленные плагины</string>
+    <string name="WGramPluginEmpty">Плагинов пока нет. Выбери файл, чтобы добавить первый.</string>
+    <string name="WGramPluginFailed">Не удалось выполнить действие с плагином.</string>
+    <string name="WGramPluginEnable">Включить плагин</string>
+    <string name="WGramPluginDisable">Отключить плагин</string>
+    <string name="WGramPluginDeleteQuestion">Удалить плагин и его локальные настройки?</string>
+    <string name="WGramPluginInstallInfo">Файл будет установлен выключенным. Если плагин с таким ID уже есть, он будет заменён и отключён. Запуск включается отдельно в списке плагинов.</string>
+    <string name="WGramPluginSendStopped">Плагин остановил отправку. Проверь раздел «Плагины».</string>
+    <string name="WGramHideAds">Отключить рекламу в чатах и поиске</string>
+    <string name="WGramHidePhone">Скрывать номер на экране настроек</string>
+    <string name="WGramHidePhoneInfo">Номер скрывается только в заголовке настроек на этом устройстве. Видимость номера для других людей задаётся в настройках приватности Telegram.</string>
+    <string name="WGramHideStoryBar">Скрывать панель stories</string>
+    <string name="WGramKeepScreen">Не гасить экран в открытом чате</string>
+    <string name="WGramBigEmoji">Большие одиночные эмодзи</string>
+    <string name="WGramStickerHints">Подсказки стикеров по эмодзи</string>
+    <string name="WGramRearCamera">Начинать кружочки с задней камеры</string>
+    <string name="WGramInAppCamera">Встроенная камера</string>
+    <string name="WGramPauseMusic">Останавливать музыку при записи</string>
+    <string name="WGramRaiseListen">Слушать голосовые у уха</string>
+    <string name="WGramInterface">Интерфейс</string>
+    <string name="WGramMedia">Камера и звук</string>
+    <string name="WGramGlobalMediaInfo">Камера, звук, размер эмодзи и подсказки стикеров общие для всех аккаунтов. Остальные переключатели на этом экране действуют для текущего аккаунта.</string>
 </resources>

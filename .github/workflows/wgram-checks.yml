@@ -16,6 +16,8 @@ jobs:
           java-version: '17'
       - name: Core behavior and Java syntax
         run: sh wgram/test.sh
+      - name: Plugin behavior and crash recovery
+        run: python3 -m unittest discover -s wgram/tests -p 'test_*.py' -v
       - name: Resources
         run: python3 wgram/verify_resources.py
       - name: Profile bot authentication and storage

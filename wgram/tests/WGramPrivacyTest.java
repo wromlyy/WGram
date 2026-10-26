@@ -51,7 +51,10 @@ public final class WGramPrivacyTest {
         check(!WGramConfig.isHistoryEnabled(0),"archive default off");
         WGramConfig.setHideRead(0,true);WGramConfig.setHideOnline(0,true);WGramConfig.setHistoryEnabled(0,true);
         check(!WGramConfig.hideRead(1)&&!WGramConfig.hideOnline(1)&&!WGramConfig.isHistoryEnabled(1),"privacy preferences isolate accounts");
+        WGramConfig.setHideAds(0,true);WGramConfig.setHidePhone(0,true);WGramConfig.setHideStoryBar(0,true);WGramConfig.setKeepScreenOn(0,true);
+        check(!WGramConfig.hideAds(1)&&!WGramConfig.hidePhone(1)&&!WGramConfig.hideStoryBar(1)&&!WGramConfig.keepScreenOn(1),"extra preferences isolate accounts");
         UserConfig.getInstance(0).userId=9003;
+        check(!WGramConfig.hideAds(0)&&!WGramConfig.hidePhone(0)&&!WGramConfig.hideStoryBar(0)&&!WGramConfig.keepScreenOn(0),"extra preferences do not leak on slot reuse");
         check(!WGramConfig.hideRead(0)&&!WGramConfig.isHistoryEnabled(0),"slot reuse does not leak privacy preferences");
         WGramConfig.setGlassHighlight(-10);WGramConfig.setGlassRefraction(1000);WGramConfig.setGlassTint(100);
         check(WGramConfig.getGlassHighlight()==0&&WGramConfig.getGlassRefraction()==100&&WGramConfig.getGlassTint()==4,"glass bounds");
