@@ -38,7 +38,8 @@
 [домен и порт](https://bothost.ru/docs/domains-and-ports),
 [база в /app/data](https://bothost.ru/docs/database-storage).
 
-Запуск тестов: `python -m unittest discover -s tests -v`.
+Для локальных тестов сначала установи зависимости: `python -m pip install -r requirements.txt`.
+Затем выполни `python -m unittest discover -s tests -v`.
 
 ## Общий каталог кастомок (0.4)
 
