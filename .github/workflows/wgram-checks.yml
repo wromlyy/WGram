@@ -20,6 +20,8 @@ jobs:
         run: python3 -m unittest discover -s wgram/tests -p 'test_*.py' -v
       - name: Resources
         run: python3 wgram/verify_resources.py
+      - name: Install bot preview dependencies
+        run: python3 -m pip install -r wgram/bot/requirements.txt
       - name: Profile bot authentication and storage
         run: python3 -m unittest discover -s wgram/bot/tests -v
       - name: Package BotHost upload

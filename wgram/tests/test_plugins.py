@@ -43,6 +43,51 @@ class PluginsTest(unittest.TestCase):
         self.engine.set_master(True)
         self.engine.enable("example", True)
 
+    def test_editor_template_runs_and_has_unique_ids(self):
+        first, second = self.engine.new_source(), self.engine.new_source()
+        info = self.engine.inspect_source(first)
+        self.assertNotEqual(info["id"], self.engine.inspect_source(second)["id"])
+        self.engine.install_source(first, info["sha256"])
+        self.assertEqual(self.engine.source(info["id"]), first)
+        self.assertFalse(self.engine.running)
+        self.engine.set_master(True)
+        self.engine.enable(info["id"], True)
+        self.assertEqual(self.engine.outgoing(0, 123, "Hello")["message"], "Hello — WGram")
+
+    def test_editor_validation_does_not_execute_and_reports_syntax_errors(self):
+        source = SOURCE.decode() + '\nraise RuntimeError("Do not execute in editor")\n'
+        info = self.engine.inspect_source(source)
+        self.engine.install_source(source, info["sha256"])
+        self.assertEqual(self.engine.source("example"), source)
+        self.assertFalse(self.engine.running)
+        with self.assertRaises(SyntaxError):
+            self.engine.inspect_source(source + "class Broken(\n")
+        with self.assertRaises(ValueError):
+            self.engine.inspect_source(" " * (MAX_SOURCE + 1))
+
+    def test_editor_save_rejects_changed_source_or_identity(self):
+        self.enable()
+        source = SOURCE.decode().replace('"Example"', '"Edited"')
+        info = self.engine.inspect_source(source)
+        with self.assertRaises(ValueError):
+            self.engine.install_source(source + "\n", info["sha256"], "example")
+        with self.assertRaises(ValueError):
+            self.engine.install_source(source, info["sha256"], "other")
+        self.assertIn("example", self.engine.running)
+        self.engine.install_source(source, info["sha256"], "example")
+        self.assertFalse(self.engine.running)
+        self.assertFalse(self.engine.list_plugins()[0]["enabled"])
+        self.assertEqual(self.engine.source("example"), source)
+        self.assertEqual(self.engine.settings("example")["loads"], 1)
+
+    def test_editor_source_rejects_escape_and_tampering(self):
+        self.install()
+        with self.assertRaises(ValueError):
+            self.engine.source("../escape")
+        (self.root / "plugins/example.py").write_bytes(SOURCE + b"\n# changed")
+        with self.assertRaises(ValueError):
+            self.engine.source("example")
+
     def test_metadata_and_install_never_execute(self):
         malicious = SOURCE + b'\nraise RuntimeError("must not run")\n'
         self.install(malicious)

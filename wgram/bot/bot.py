@@ -1,9 +1,10 @@
-"""WGram profiles + Telegram bot. Python 3.11+, standard library only."""
+"""WGram profiles + Telegram bot. Python 3.11+, Pillow for universal emoji previews."""
 import base64
 from contextlib import contextmanager
 import hashlib
 import hmac
 import json
+from io import BytesIO
 import os
 import re
 from pathlib import Path
@@ -69,6 +70,93 @@ def api(method, payload):
     if not result.get('ok'):
         raise RuntimeError('Telegram API request failed')
     return result['result']
+
+
+
+def api_upload(method, payload, field, filename, content):
+    """Upload bytes directly: never expose the token-bearing getFile URL in chat."""
+    boundary = 'WGram' + secrets.token_hex(16)
+    parts = []
+    for key, value in payload.items():
+        parts.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + key +
+            '"\r\n\r\n' + str(value) + '\r\n').encode())
+    parts.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + field +
+        '"; filename="' + filename + '"\r\nContent-Type: image/png\r\n\r\n').encode())
+    parts.extend((content, ('\r\n--' + boundary + '--\r\n').encode()))
+    request = urllib.request.Request('https://api.telegram.org/bot' + TOKEN + '/' + method,
+        data=b''.join(parts), headers={'Content-Type': 'multipart/form-data; boundary=' + boundary})
+    with urllib.request.urlopen(request, timeout=40) as response:
+        result = json.load(response)
+    if not result.get('ok'):
+        raise RuntimeError('Telegram upload failed')
+    return result['result']
+
+
+def download_emoji_image(file_id):
+    limit = 1_500_000
+    info = api('getFile', {'file_id': file_id})
+    path = info.get('file_path', '')
+    if (not isinstance(path, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', path)
+            or path.startswith('/') or '..' in path.split('/') or info.get('file_size', 0) > limit):
+        raise ValueError('Invalid emoji image')
+    with urllib.request.urlopen('https://api.telegram.org/file/bot' + TOKEN + '/' + path, timeout=20) as response:
+        data = response.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError('Emoji image too large')
+    return data
+
+
+def emoji_preview_png(sticker):
+    from PIL import Image
+    source = sticker if not sticker.get('is_animated') and not sticker.get('is_video') else sticker.get('thumbnail', {})
+    if not source.get('file_id'):
+        raise ValueError('No emoji preview available')
+    with Image.open(BytesIO(download_emoji_image(source['file_id'])), formats=('WEBP', 'JPEG', 'PNG')) as image:
+        if not (0 < image.width <= 512 and 0 < image.height <= 512):
+            raise ValueError('Invalid emoji dimensions')
+        image = image.convert('RGBA')
+        if sticker.get('needs_repainting'):
+            tinted = Image.new('RGBA', image.size, (40, 40, 40, 255))
+            tinted.putalpha(image.getchannel('A'))
+            image = tinted
+        scale = 256 / max(image.size)
+        image = image.resize((max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.LANCZOS)
+        canvas = Image.new('RGB', (320, 320), (245, 245, 245))
+        canvas.paste(image, ((320-image.width)//2, (320-image.height)//2), image)
+        output = BytesIO()
+        canvas.save(output, 'PNG')
+        return output.getvalue()
+
+
+def send_emoji_preview(chat_id, emoji):
+    """Recipient Premium is never required. Check native delivery before falling back."""
+    emoji = str(uid(emoji))
+    try:
+        stickers = api('getCustomEmojiStickers', {'custom_emoji_ids': [emoji]})
+        sticker = next(s for s in stickers if isinstance(s, dict) and str(s.get('custom_emoji_id')) == emoji)
+    except Exception:
+        api('sendMessage', {'chat_id': chat_id, 'text': 'Эмодзи сейчас недоступен. Попробуй открыть работу позже.'})
+        return False
+    alt = sticker.get('emoji')
+    if isinstance(alt, str) and alt:
+        try:
+            sent = api('sendMessage', {'chat_id': chat_id, 'text': alt,
+                'entities': [{'type': 'custom_emoji', 'offset': 0, 'length': len(alt.encode('utf-16-le'))//2,
+                    'custom_emoji_id': emoji}]})
+            if any(e.get('type') == 'custom_emoji' and str(e.get('custom_emoji_id')) == emoji
+                   for e in sent.get('entities', []) if isinstance(e, dict)):
+                return True
+        except Exception:
+            pass  # Bot permission may be absent even though recipients can view emojis.
+    try:
+        image = emoji_preview_png(sticker)
+        api_upload('sendPhoto', {'chat_id': chat_id, 'caption': 'Предпросмотр эмодзи · Premium для просмотра не нужен'},
+            'photo', 'emoji.png', image)
+        return True
+    except Exception:
+        api('sendMessage', {'chat_id': chat_id,
+            'text': 'Не удалось загрузить предпросмотр. Анимацию можно открыть в каталоге WGram без Premium.'})
+        return False
 
 
 def uid(value):
@@ -201,11 +289,11 @@ def deliver_catalog():
             db.execute('UPDATE catalog_outbox SET delivered=1 WHERE custom_id=?', (item['id'],))
 
 
-def handle_custom_command(sender, text):
+def handle_custom_command(sender, text, preview=False):
     command, _, argument = text.partition(' ')
-    if command == '/start' and argument.startswith('custom_'):
+    if command == '/view' or (command == '/start' and argument.startswith('custom_')):
         try:
-            custom_id = uid(argument[7:])
+            custom_id = uid(argument[7:] if command == '/start' else argument)
         except (ValueError, TypeError):
             return 'Кастомка не найдена.'
         with GUARD, database() as db:
@@ -218,6 +306,8 @@ def handle_custom_command(sender, text):
             content += '\nhttps://t.me/' + ('addemoji/' if item['kind'] == 'emoji_pack' else 'addstickers/') + item['payload']['short_name']
         else:
             content += '\nОткрой каталог кастомок в настройках WGram, чтобы применить.'
+        if preview and item['payload'].get('emoji'):
+            send_emoji_preview(sender, item['payload']['emoji'])
         return content
     if text in ('/customs', '/start customs', '/help'):
         return ('Общий каталог WGram. Всё отправленное на публикацию видно другим после одобрения.\n'
@@ -226,7 +316,7 @@ def handle_custom_command(sender, text):
             'Кастомный эмодзи отдельным сообщением — добавить эмодзи\n'
             '/emoji ID Название — добавить эмодзи\n'
             'Ссылка t.me/addemoji/... или t.me/addstickers/... — добавить набор\n'
-            '/catalog — общий каталог\n/mine — мои работы\n/remove ID — удалить свою работу')
+            '/catalog — общий каталог\n/view ID — открыть работу и эмодзи без Premium\n/mine — мои работы\n/remove ID — удалить свою работу')
     if command in ('/catalog', '/mine', '/pending'):
         with GUARD, database() as db:
             if command == '/pending':
@@ -300,7 +390,7 @@ def handle_bot_message(message):
         if reply:
             api('sendMessage', {'chat_id': sender, 'text': reply})
         return
-    custom_reply = handle_custom_command(sender, text)
+    custom_reply = handle_custom_command(sender, text, preview=True)
     if custom_reply is not None:
         api('sendMessage', {'chat_id': sender, 'text': custom_reply})
         return

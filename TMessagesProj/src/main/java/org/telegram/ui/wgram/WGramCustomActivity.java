@@ -33,6 +33,7 @@ public final class WGramCustomActivity extends UniversalFragment {
     private byte[] banner;
     private ImageView preview;
     private Bitmap bitmap;
+    private WGramEmojiPreviewView emojiPreview;
     public WGramCustomActivity(int account,long id){setCurrentAccount(account);customId=id;}
     @Override protected CharSequence getTitle(){return item==null?getString(R.string.WGramCustoms):item.optString("title");}
     private void refresh(){if(listView!=null)listView.adapter.update(true);}
@@ -77,6 +78,13 @@ public final class WGramCustomActivity extends UniversalFragment {
         if(item==null)return;
         items.add(UItem.asHeader(item.optString("title")));
         items.add(UItem.asShadow(WGramCatalogActivity.kind(item.optString("kind"))+"\n"+getString(R.string.WGramCustomAuthor)+": "+item.optLong("owner")+"\n"+WGramCatalogActivity.status(item.optString("status"))));
+        JSONObject payload=item.optJSONObject("payload");
+        long emoji=payload==null?0:payload.optLong("emoji");
+        if(emoji>0&&getContext()!=null){
+            if(emojiPreview==null)emojiPreview=new WGramEmojiPreviewView(getContext(),currentAccount);
+            emojiPreview.setEmoji(emoji);items.add(UItem.asCustomShadow(emojiPreview));
+            items.add(UItem.asShadow(getString(R.string.WGramCustomEmojiPreviewInfo)));
+        }
         if(bitmap!=null&&getContext()!=null){
             if(preview==null){preview=new ImageView(getContext());preview.setAdjustViewBounds(true);preview.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             preview.setImageBitmap(bitmap);items.add(UItem.asCustomShadow(preview));
@@ -137,7 +145,7 @@ public final class WGramCustomActivity extends UniversalFragment {
         });
     }
     @Override public void onFragmentDestroy(){
-        super.onFragmentDestroy();if(preview!=null)preview.setImageDrawable(null);
+        super.onFragmentDestroy();if(emojiPreview!=null)emojiPreview.release();if(preview!=null)preview.setImageDrawable(null);
         if(bitmap!=null){bitmap.recycle();bitmap=null;}banner=null;
     }
     @Override protected boolean onLongClick(UItem item,View view,int position,float x,float y){return false;}

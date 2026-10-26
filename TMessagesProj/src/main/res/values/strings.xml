@@ -11791,4 +11791,16 @@
     <string name="WGramCustomDelete">Удалить из каталога</string>
     <string name="WGramCustomDeleteInfo">Удалить работу и её баннер из каталога? Уже сохранённые другими пользователями копии и посты в Telegram останутся.</string>
     <string name="WGramCustomApplied">Оформление применено. Посмотреть результат можно в своём профиле.</string>
+    <string name="WGramCustomEmojiPreview">Предпросмотр кастомного эмодзи</string>
+    <string name="WGramCustomEmojiPreviewInfo">Просмотр и применение этого эмодзи в WGram доступны без Telegram Premium.</string>
+    <string name="WGramPluginCreate">Создать плагин</string>
+    <string name="WGramPluginEdit">Редактировать код</string>
+    <string name="WGramPluginEditor">Редактор плагинов</string>
+    <string name="WGramPluginDraftInfo">Python · WGram API 1. Черновик сохраняется на устройстве. Проверка кода не запускает плагин.</string>
+    <string name="WGramPluginDraftFailed">Не удалось сохранить черновик. Экспортируй код в файл.</string>
+    <string name="WGramPluginValidate">Проверить</string>
+    <string name="WGramPluginExport">Экспорт</string>
+    <string name="WGramPluginValid">Синтаксис и метаданные верны. Работа обработчиков проверяется после включения плагина.</string>
+    <string name="WGramPluginSaved">Плагин сохранён и выключен. Включить его можно в списке плагинов.</string>
+    <string name="WGramPluginExported">Python-файл сохранён. Его можно передать другому пользователю WGram.</string>
 </resources>

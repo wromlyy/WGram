@@ -158,6 +158,117 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(len(posts),1)
         self.assertIn('?start=custom_'+str(item['id']),posts[0].args[1]['text'])
 
+    def emoji_item(self):
+        with bot.database() as db:
+            item = bot.create_custom(db, 100, 'emoji', 'Animated emoji', {'emoji': 9000000000000000000})
+            bot.moderate_custom(db, bot.ADMIN, item['id'], True)
+        return item
+
+    def emoji_sticker(self, **extra):
+        return dict({'type': 'custom_emoji', 'custom_emoji_id': '9000000000000000000',
+            'emoji': '😀', 'file_id': 'full', 'is_animated': True,
+            'thumbnail': {'file_id': 'thumb'}}, **extra)
+
+    def test_native_emoji_visible_to_recipient_without_premium(self):
+        item = self.emoji_item()
+        def telegram(method, data):
+            if method == 'getCustomEmojiStickers':
+                return [self.emoji_sticker()]
+            return {'entities': data.get('entities', [])}
+        self.mock_api.side_effect = telegram
+        with patch.object(bot, 'api_upload') as upload:
+            bot.handle_bot_message(self.message(101, '/view ' + str(item['id']), **{'from': {'id': 101, 'is_premium': False}}))
+        native = [call.args[1] for call in self.mock_api.call_args_list if call.args[1].get('entities')]
+        self.assertEqual(len(native), 1)
+        self.assertEqual(native[0]['chat_id'], 101)
+        self.assertEqual(native[0]['entities'][0]['length'], 2)  # UTF-16, not Python code points.
+        self.assertEqual(native[0]['entities'][0]['custom_emoji_id'], '9000000000000000000')
+        upload.assert_not_called()
+
+    def test_bot_permission_denied_or_entity_stripped_uses_real_picture(self):
+        from PIL import Image
+        source = BytesIO()
+        Image.new('RGBA', (100, 100), (255, 0, 0, 255)).save(source, 'WEBP')
+        for rejected in (False, True):
+            def telegram(method, data):
+                if method == 'getCustomEmojiStickers':
+                    return [self.emoji_sticker()]
+                if method == 'getFile':
+                    self.assertEqual(data['file_id'], 'thumb')
+                    return {'file_path': 'stickers/preview.webp'}
+                if rejected:
+                    raise RuntimeError('CUSTOM_EMOJI_NOT_ALLOWED')
+                return {'entities': []}  # Telegram can strip disallowed entities silently.
+            self.mock_api.side_effect = telegram
+            with patch.object(bot.urllib.request, 'urlopen', return_value=BytesIO(source.getvalue())), patch.object(bot, 'api_upload') as upload:
+                self.assertTrue(bot.send_emoji_preview(101, 9000000000000000000))
+            method, payload, field, name, image = upload.call_args.args
+            self.assertEqual((method, payload['chat_id'], field, name), ('sendPhoto', 101, 'photo', 'emoji.png'))
+            self.assertNotIn('entities', payload)
+            self.assertNotIn('api.telegram.org', json.dumps(payload))
+            with Image.open(BytesIO(image)) as decoded:
+                self.assertEqual(decoded.size, (320, 320))
+                self.assertGreater(decoded.getpixel((160, 160))[0], 240)
+                self.assertLess(decoded.getpixel((160, 160))[1], 10)
+
+    def test_pending_emoji_not_sent_to_other_user_even_by_view_command(self):
+        with bot.database() as db:
+            item = bot.create_custom(db, 100, 'emoji', 'Private pending', {'emoji': 123})
+        self.mock_api.reset_mock()
+        bot.handle_bot_message(self.message(101, '/view ' + str(item['id'])))
+        self.assertEqual(self.mock_api.call_count, 1)
+        self.assertEqual(self.mock_api.call_args.args[1]['text'], 'Кастомка не найдена.')
+
+    def test_emoji_deep_link_previews_without_pairing_or_subscription(self):
+        item = self.emoji_item()
+        with patch.object(bot, 'send_emoji_preview', return_value=True) as preview:
+            bot.handle_bot_message(self.message(101, '/start custom_' + str(item['id'])))
+        preview.assert_called_once_with(101, 9000000000000000000)
+
+    def test_unavailable_emoji_does_not_claim_success(self):
+        self.mock_api.side_effect = lambda method, data: [] if method == 'getCustomEmojiStickers' else {}
+        with patch.object(bot, 'api_upload') as upload:
+            self.assertFalse(bot.send_emoji_preview(101, 123))
+        upload.assert_not_called()
+        self.assertIn('недоступен', self.mock_api.call_args.args[1]['text'])
+
+    def test_preview_download_rejects_path_escape_and_oversize(self):
+        for info in ({'file_path': '../secret'}, {'file_path': 'https://example.org/image'},
+                     {'file_path': '/secret'}, {'file_path': 'a.webp', 'file_size': 1_500_001}):
+            self.mock_api.return_value = info
+            with patch.object(bot.urllib.request, 'urlopen') as fetch:
+                with self.assertRaises(ValueError):
+                    bot.download_emoji_image('thumb')
+            fetch.assert_not_called()
+        self.mock_api.return_value = {'file_path': 'a.webp'}
+        with patch.object(bot.urllib.request, 'urlopen', return_value=BytesIO(b'x' * 1_500_001)):
+            with self.assertRaises(ValueError):
+                bot.download_emoji_image('thumb')
+
+    def test_static_and_repainting_preview_and_dimensions(self):
+        from PIL import Image
+        for size, rejected in (((100, 100), False), ((513, 100), True)):
+            source = BytesIO()
+            Image.new('RGBA', size, (255, 255, 255, 255)).save(source, 'PNG')
+            sticker = self.emoji_sticker(is_animated=False, needs_repainting=True)
+            with patch.object(bot, 'download_emoji_image', return_value=source.getvalue()) as download:
+                if rejected:
+                    with self.assertRaises(ValueError):
+                        bot.emoji_preview_png(sticker)
+                else:
+                    with Image.open(BytesIO(bot.emoji_preview_png(sticker))) as image:
+                        self.assertEqual(image.getpixel((160, 160)), (40, 40, 40))
+                download.assert_called_once_with('full')
+
+    def test_multipart_preview_upload_contains_bytes_and_no_token_in_payload(self):
+        response = BytesIO(json.dumps({'ok': True, 'result': {'message_id': 1}}).encode())
+        with patch.object(bot.urllib.request, 'urlopen', return_value=response) as post:
+            self.assertEqual(bot.api_upload('sendPhoto', {'chat_id': 101}, 'photo', 'emoji.png', b'PNG_BYTES'), {'message_id': 1})
+        request = post.call_args.args[0]
+        self.assertIn(b'filename="emoji.png"', request.data)
+        self.assertIn(b'PNG_BYTES', request.data)
+        self.assertIn('multipart/form-data', request.headers['Content-type'])
+
     def test_public_link_does_not_expose_pending_and_admin_list(self):
         token=self.connect(100);item=self.create(token)
         self.assertEqual(bot.handle_custom_command(101,'/start custom_'+str(item['id'])),'Кастомка не найдена.')

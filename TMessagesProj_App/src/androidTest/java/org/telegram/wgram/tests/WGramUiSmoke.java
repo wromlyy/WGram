@@ -48,7 +48,8 @@ public final class WGramUiSmoke extends Instrumentation {
         }
         if (failure != null) throw failure;
     }
-    private void open(String name, BaseFragment fragment) throws Throwable {
+    private void open(String name, BaseFragment fragment) throws Throwable { open(name, fragment, null); }
+    private void open(String name, BaseFragment fragment, Runnable inspect) throws Throwable {
         Bundle opening = new Bundle(); opening.putString("stream", "OPEN: " + name + "\n"); sendStatus(0, opening);
         main(() -> {
             fragment.setCurrentAccount(0);
@@ -58,6 +59,7 @@ public final class WGramUiSmoke extends Instrumentation {
         // Animated profiles keep posting frames; verify via a bounded main-thread callback.
         main(() -> {
             if (fragment.getFragmentView() == null) throw new AssertionError("No view: " + name);
+            if (inspect != null) inspect.run();
         });
         Bitmap screen=getUiAutomation().takeScreenshot();
         if(screen!=null){
@@ -141,6 +143,38 @@ public final class WGramUiSmoke extends Instrumentation {
         check(editing instanceof android.text.Spanned&&((android.text.Spanned)editing).getSpans(0,editing.length(),org.telegram.ui.Components.AnimatedEmojiSpan.class).length==2,"editing restores both emojis");
         TLRPC.TL_messageEntityCustomEmoji broken=new TLRPC.TL_messageEntityCustomEmoji();broken.offset=-1;broken.length=Integer.MAX_VALUE;broken.document_id=42;
         entities.add(broken);check(MessageObject.replaceAnimatedEmoji(text,entities,paint.getFontMetricsInt())!=null,"corrupt emoji cannot crash Android renderer");
+    }
+    private BaseFragment customEmojiFixture() throws Exception {
+        org.telegram.ui.wgram.WGramCustomActivity fragment=new org.telegram.ui.wgram.WGramCustomActivity(0,1);
+        java.lang.reflect.Field field=fragment.getClass().getDeclaredField("item");field.setAccessible(true);
+        field.set(fragment,new org.json.JSONObject().put("id",1).put("owner",9000000001L)
+            .put("title","Emoji without Premium").put("kind","emoji").put("status","published")
+            .put("payload",new org.json.JSONObject().put("emoji",5368324170671202286L)));
+        return fragment;
+    }
+    private void pluginEditorChecks() throws Throwable {
+        File draft=new File(ApplicationLoader.getFilesDirFixed(),"wgram_plugin_drafts/new.py");
+        new android.util.AtomicFile(draft).delete();
+        org.telegram.ui.wgram.WGramPluginEditorActivity editor=new org.telegram.ui.wgram.WGramPluginEditorActivity(0);
+        final String[] edited={null};
+        open("plugin editor new",editor,()->{
+            try {
+                android.widget.EditText code=(android.widget.EditText)field(editor,"code");
+                check(code.getText().toString().contains("class MyPlugin(BasePlugin)"),"new plugin editor loads working template");
+                edited[0]=code.getText().toString()+"\n# preserved draft 😀\n";
+                code.setText(edited[0]);
+            }catch(Exception e){throw new RuntimeException(e);}
+        });
+        java.util.concurrent.CountDownLatch saved=new java.util.concurrent.CountDownLatch(1);
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(saved::countDown);
+        check(saved.await(10,java.util.concurrent.TimeUnit.SECONDS),"plugin draft writes complete");
+        org.telegram.ui.wgram.WGramPluginEditorActivity restored=new org.telegram.ui.wgram.WGramPluginEditorActivity(0);
+        open("plugin editor restored draft",restored,()->{
+            try {
+                check(((android.widget.EditText)field(restored,"code")).getText().toString().equals(edited[0]),"plugin draft restores exact Unicode source");
+            }catch(Exception e){throw new RuntimeException(e);}
+        });
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(()->new android.util.AtomicFile(draft).delete());
     }
     private BaseFragment dialogFixture() {
         return new BaseFragment(){@Override public android.view.View createView(android.content.Context context){
@@ -228,6 +262,11 @@ public final class WGramUiSmoke extends Instrumentation {
             check(org.telegram.messenger.wgram.WGramPlugins.beforeSend(0,params)&&params.message.equals("secret"),"secret chat bypasses send hooks");
             pluginCall("enable","wgram_smoke",false);
             check(!new org.json.JSONArray(pluginCall("list_plugins")).getJSONObject(0).getBoolean("running"),"Android plugin unloads");
+            String updated=code+"\n# edited on Android\n";
+            org.json.JSONObject editedInfo=new org.json.JSONObject(pluginCall("inspect_source",updated));
+            pluginCall("install_source",updated,editedInfo.getString("sha256"),"wgram_smoke");
+            check(new org.json.JSONArray("["+pluginCall("source","wgram_smoke")+"]").getString(0).equals(updated),"Android editor bridge preserves Python source");
+            check(!new org.json.JSONArray(pluginCall("list_plugins")).getJSONObject(0).getBoolean("enabled"),"Android editor save leaves code disabled");
             pluginCall("remove","wgram_smoke");
             check(new org.json.JSONArray(pluginCall("list_plugins")).length()==0,"Android plugin removal cleans list");
         }finally{source.delete();pluginMaster(false);}
@@ -272,8 +311,21 @@ public final class WGramUiSmoke extends Instrumentation {
             open("ghost settings", new WGramSettingsActivity(0,103));
             open("extra settings", new WGramSettingsActivity(0,104));
             open("custom catalog disconnected", new org.telegram.ui.wgram.WGramCatalogActivity(0));
+            BaseFragment custom=customEmojiFixture();
+            open("custom emoji without premium",custom,()->{
+                try {
+                    check(!UserConfig.getInstance(0).isPremium(),"catalog recipient has no Premium subscription");
+                    android.view.View preview=(android.view.View)field(custom,"emojiPreview");
+                    check(preview.getMeasuredHeight()==org.telegram.messenger.AndroidUtilities.dp(144),"catalog emoji preview reserves measured height");
+                    org.telegram.ui.Components.AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable drawable=
+                        (org.telegram.ui.Components.AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable)field(preview,"drawable");
+                    check(((org.telegram.ui.Components.AnimatedEmojiDrawable)drawable.getDrawable()).getDocumentId()==5368324170671202286L,"catalog loads chosen emoji for non-Premium account");
+                    check((Boolean)field(drawable,"attached"),"catalog emoji animation attaches while visible");
+                }catch(Exception e){throw new RuntimeException(e);}
+            });
             open("plugins", new org.telegram.ui.wgram.WGramPluginsActivity(0));
             pluginChecks();
+            pluginEditorChecks();
             open("admin", new WGramAdminActivity(0));
             for(int section=1;section<=5;section++)open("admin section "+section,new WGramAdminActivity(0,9000000001L,section));
             open("profile editor", new WGramProfileEditorActivity(0));

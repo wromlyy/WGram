@@ -38,6 +38,7 @@ public final class WGramPluginsActivity extends UniversalFragment {
         items.add(UItem.asCheck(1, getString(R.string.WGramPluginEngine)).setChecked(WGramPlugins.enabled()));
         items.add(UItem.asShadow(getString(R.string.WGramPluginTrust)));
         items.add(UItem.asButton(2, R.drawable.msg_add, getString(R.string.WGramPluginImport), busy ? getString(R.string.Loading) : ""));
+        items.add(UItem.asButton(3, R.drawable.msg_edit, getString(R.string.WGramPluginCreate)));
         items.add(UItem.asShadow(getString(R.string.WGramPluginFormat)));
         if (error != null) items.add(UItem.asShadow(getString(R.string.WGramPluginFailed) + "\n" + error));
         items.add(UItem.asHeader(getString(R.string.WGramPluginInstalled)));
@@ -64,18 +65,21 @@ public final class WGramPluginsActivity extends UniversalFragment {
             intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType("*/*");
             try { startActivityForResult(intent, 2404); }
             catch (Exception e) { WGramUi.info(this, getString(R.string.WGramPluginFailed)); }
+        } else if (item.id == 3) {
+            presentFragment(new WGramPluginEditorActivity(currentAccount));
         } else if (item.id >= 100 && item.id - 100 < plugins.length()) {
             JSONObject info = plugins.optJSONObject(item.id - 100);
             if (info == null) return;
             boolean enabled = info.optBoolean("enabled");
             showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(info.optString("name"))
-                .setItems(new CharSequence[]{getString(enabled ? R.string.WGramPluginDisable : R.string.WGramPluginEnable), getString(R.string.Delete)}, (d,w) -> {
+                .setItems(new CharSequence[]{getString(enabled ? R.string.WGramPluginDisable : R.string.WGramPluginEnable), getString(R.string.WGramPluginEdit), getString(R.string.Delete)}, (d,w) -> {
                     if (w == 0) {
                         if (enabled) change("enable", info.optString("id"), false);
                         else showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(info.optString("name"))
                             .setMessage(getString(R.string.WGramPluginTrust)).setPositiveButton(getString(R.string.Enable), (dd,ww) -> change("enable", info.optString("id"), true))
                             .setNegativeButton(getString(R.string.Cancel), null).create());
-                    } else showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.Delete))
+                    } else if (w == 1) presentFragment(new WGramPluginEditorActivity(currentAccount, info.optString("id")));
+                    else showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.Delete))
                         .setMessage(getString(R.string.WGramPluginDeleteQuestion)).setPositiveButton(getString(R.string.Delete), (dd,ww) -> change("remove", info.optString("id")))
                         .setNegativeButton(getString(R.string.Cancel), null).create());
                 }).create());

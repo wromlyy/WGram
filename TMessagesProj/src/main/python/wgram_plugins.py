@@ -103,20 +103,49 @@ class Engine:
         with open(path, "rb") as source:
             return metadata(source.read(MAX_SOURCE + 1))
 
-    def install(self, path, expected_hash):
+    def new_source(self):
+        from wgram_template import create
+        return create()
+
+    def inspect_source(self, source):
+        if not isinstance(source, str):
+            raise ValueError("Plugin source must be text")
+        return metadata(source.encode("utf-8"))
+
+    def source(self, plugin_id):
         with self.lock:
-            with open(path, "rb") as input_file:
+            self._id(plugin_id)
+            with (self.root / (plugin_id + ".py")).open("rb") as input_file:
                 source = input_file.read(MAX_SOURCE + 1)
+            if metadata(source)["sha256"] != self.state["plugins"][plugin_id]["sha256"]:
+                raise ValueError("Installed plugin changed. Reimport it.")
+            return source.decode("utf-8-sig")
+
+    def install(self, path, expected_hash):
+        with open(path, "rb") as input_file:
+            source = input_file.read(MAX_SOURCE + 1)
+        return self._install(source, expected_hash)
+
+    def install_source(self, source, expected_hash, original_id=None):
+        if not isinstance(source, str):
+            raise ValueError("Plugin source must be text")
+        return self._install(source.encode("utf-8"), expected_hash, original_id)
+
+    def _install(self, source, expected_hash, original_id=None):
+        with self.lock:
             info = metadata(source)
             if info["sha256"] != expected_hash:
                 raise ValueError("Plugin changed after confirmation")
             plugin_id = info["id"]
+            if original_id is not None and plugin_id != self._id(original_id):
+                raise ValueError("Keep the plugin ID when editing. Create a new plugin for a different ID.")
             self._unload(plugin_id)
             temporary = self.root / (plugin_id + ".pending")
             temporary.write_bytes(source)
             os.replace(temporary, self.root / (plugin_id + ".py"))
             self.state["plugins"][plugin_id] = dict(info, enabled=False, error="")
             self.save()
+            return info
 
     def _unload(self, plugin_id):
         plugin = self.running.pop(plugin_id, None)
