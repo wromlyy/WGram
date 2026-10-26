@@ -22,3 +22,12 @@ jobs:
         run: python3 wgram/verify_resources.py
       - name: Profile bot authentication and storage
         run: python3 -m unittest discover -s wgram/bot/tests -v
+      - name: Package BotHost upload
+        run: python3 wgram/package_bot.py "$RUNNER_TEMP/WGramBot-0.4.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WGramBot-0.4
+          path: |
+            ${{ runner.temp }}/WGramBot-0.4.zip
+            ${{ runner.temp }}/WGramBot-0.4.zip.sha256
+          if-no-files-found: error
