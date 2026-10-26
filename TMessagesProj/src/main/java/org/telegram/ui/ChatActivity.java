@@ -30091,6 +30091,7 @@ public class ChatActivity extends BaseFragment implements
         super.onResume();
         AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.wgram.WGramNotices.showPending(currentAccount), 350);
         updateWGramHistoryVisibility();
+        if (fragmentView != null) fragmentView.setKeepScreenOn(org.telegram.messenger.wgram.WGramConfig.keepScreenOn(currentAccount));
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
@@ -30303,6 +30304,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onPause() {
         super.onPause();
+        if (fragmentView != null) fragmentView.setKeepScreenOn(false);
         scrolling = false;
         if (scrimPopupWindow != null) {
             scrimPopupWindow.setPauseNotifications(false);

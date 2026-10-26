@@ -21,7 +21,7 @@ on:
       tag:
         description: 'Release tag'
         required: true
-        default: v0.3
+        default: v0.4
         type: string
 permissions:
   contents: write
@@ -116,8 +116,9 @@ jobs:
           assert certs and set(certs) == {'6805db11fd8984f63fe91f4b4e9eea7f751b2a17a056bb08a25c7ad37325ab86'}, 'Unexpected WGram signing certificate'
           badging = subprocess.check_output([str(signer.parent / 'aapt'), 'dump', 'badging', str(source)], text=True)
           assert "package: name='org.wgram.messenger.beta'" in badging
-          assert "versionCode='72399'" in badging
-          assert "sdkVersion:'23'" in badging
+          version, minimum = {'v0.3': (72399, 23), 'v0.4': (72409, 24)}[os.environ['WGRAM_RELEASE_TAG']]
+          assert f"versionCode='{version}'" in badging
+          assert f"sdkVersion:'{minimum}'" in badging
           print(signature)
           with open(os.environ['GITHUB_ENV'], 'a') as env:
               env.write('WGRAM_VERIFIED_APK_SHA=' + actual + '\n')
@@ -125,10 +126,31 @@ jobs:
           pathlib.Path('WGram.apk.sha256').write_text(actual + '  WGram.apk\n')
           print('Verified WGram.apk:', actual)
           PY
+          python3 -m pip install -r wgram/bot/requirements.txt
           python3 -m unittest discover -s wgram/bot/tests -v
           python3 wgram/package_bot.py WGramBot.zip
       - name: Publish standalone APK and separate bot project
         run: |
+          if [ "$WGRAM_RELEASE_TAG" = v0.4 ]; then
+          cat > release-notes.md <<'NOTES04'
+          WGram 0.4 — тестовая сборка для Android 7.0+.
+
+          Создание, редактирование, импорт и экспорт Python-плагинов WGram API 1;
+          черновики и проверка кода без запуска. Общий каталог кастомок через бота,
+          модерация, применение оформления и предпросмотр эмодзи без Premium.
+          Настройки разделены по страницам; добавлены дополнительные настройки чатов,
+          камеры и приватности.
+
+          Скачайте WGram.apk напрямую — ZIP распаковывать не нужно.
+          WGramBot.zip — отдельный проект сервиса для BotHost. Бот не развёрнут.
+          Весь SDK и все функции AyuGram/exteraGram пока не перенесены.
+
+          170 проверок логики и два прогона по 76 проверок на Android 14 прошли.
+          Подпись совпадает с WGram 0.3. Реальный вход и обмен между аккаунтами
+          не проверены; Firebase push выключен. В обычном Telegram предпросмотр
+          ботом может быть статичной картинкой. Плагины выполняются с правами приложения.
+          NOTES04
+          else
           cat > release-notes.md <<'NOTES'
           WGram 0.3: удалённый текст с отметкой × в чате, удобнее настройки и админка,
           изменяемый текст ограничения до отзыва, копирование профиля с подтверждением,
@@ -147,6 +169,7 @@ jobs:
           копирование профиля через Telegram и обмен между двумя аккаунтами требуют
           проверки на устройствах. Firebase выключен, фоновые уведомления могут задерживаться.
           NOTES
+          fi
           if [ "$WGRAM_DRAFT_ONLY" = true ]; then
             gh release view "$WGRAM_RELEASE_TAG" --json isDraft,tagName > draft-release.json
             gh api "repos/$GH_REPO/git/ref/tags/$WGRAM_RELEASE_TAG" > draft-tag.json

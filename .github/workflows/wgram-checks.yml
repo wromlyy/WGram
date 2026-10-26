@@ -16,7 +16,20 @@ jobs:
           java-version: '17'
       - name: Core behavior and Java syntax
         run: sh wgram/test.sh
+      - name: Plugin behavior and crash recovery
+        run: python3 -m unittest discover -s wgram/tests -p 'test_*.py' -v
       - name: Resources
         run: python3 wgram/verify_resources.py
+      - name: Install bot preview dependencies
+        run: python3 -m pip install -r wgram/bot/requirements.txt
       - name: Profile bot authentication and storage
         run: python3 -m unittest discover -s wgram/bot/tests -v
+      - name: Package BotHost upload
+        run: python3 wgram/package_bot.py "$RUNNER_TEMP/WGramBot-0.4.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WGramBot-0.4
+          path: |
+            ${{ runner.temp }}/WGramBot-0.4.zip
+            ${{ runner.temp }}/WGramBot-0.4.zip.sha256
+          if-no-files-found: error

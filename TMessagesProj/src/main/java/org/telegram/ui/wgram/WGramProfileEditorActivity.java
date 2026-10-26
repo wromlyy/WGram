@@ -39,6 +39,7 @@ public final class WGramProfileEditorActivity extends UniversalFragment {
         items.add(UItem.asButton(11,getString(R.string.WGramRemoveBanner)));
         items.add(UItem.asButton(12,getString(R.string.WGramProfilePreview)));
         items.add(UItem.asShadow(getString(R.string.WGramBannerInfo)));
+        items.add(UItem.asButton(23,getString(R.string.WGramCustoms)));
         items.add(UItem.asHeader(getString(R.string.WGramSharedProfile)));
         items.add(UItem.asButton(20,getString(R.string.WGramPublishProfile),publishing?getString(R.string.Loading):"").accent());
         items.add(UItem.asButton(21,getString(R.string.WGramService),getString(WGramService.connected(currentAccount)?R.string.WGramServiceConnected:R.string.WGramServiceDisconnected)));
@@ -70,6 +71,7 @@ public final class WGramProfileEditorActivity extends UniversalFragment {
                 }
                 break;
             case 12:Bundle args=new Bundle();args.putLong("user_id",getUserConfig().getClientUserId());ProfileActivity profile=new ProfileActivity(args);profile.setCurrentAccount(currentAccount);presentFragment(profile);return;
+            case 23:presentFragment(new WGramCatalogActivity(currentAccount));return;
             case 20:
                 if(publishing||importing)return;
                 showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.WGramPublishProfile)).setMessage(getString(R.string.WGramProfilePublishInfo))

@@ -12,6 +12,9 @@ java -cp "$wgram_test_output" WGramPrivacyTest
 java -cp "$wgram_test_output" JavaSyntaxCheck \
     TMessagesProj/src/main/java/org/telegram/messenger/wgram/*.java \
     TMessagesProj/src/main/java/org/telegram/ui/wgram/*.java \
+    TMessagesProj/src/main/java/org/telegram/messenger/ApplicationLoader.java \
+    TMessagesProj/src/main/java/org/telegram/ui/Adapters/DialogsSearchAdapter.java \
+    TMessagesProj/src/main/java/org/telegram/ui/Components/InstantCameraView.java \
     TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java \
     TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java \
     TMessagesProj/src/main/java/org/telegram/messenger/UserConfig.java \

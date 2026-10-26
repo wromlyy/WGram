@@ -737,7 +737,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         selectedCamera = null;
         if (!fromPaused) {
             if (!useCamera2) {
-                isFrontface = true;
+                isFrontface = !org.telegram.messenger.wgram.WGramConfig.rearVideoCamera();
+            } else if (camera2Sessions[0] == null && camera2Sessions[1] == null) {
+                isFrontface = !org.telegram.messenger.wgram.WGramConfig.rearVideoCamera();
             }
             updateFlash();
             recordedTime = 0;

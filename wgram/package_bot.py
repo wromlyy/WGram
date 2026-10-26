@@ -7,7 +7,7 @@ import zipfile
 
 root = Path(__file__).resolve().parent / 'bot'
 output = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('WGramBot.zip')
-files = ['bot.py', 'Dockerfile', 'requirements.txt', 'bothost.json', 'README.md', '.gitignore', 'tests/test_service.py']
+files = ['bot.py', 'Dockerfile', 'requirements.txt', 'bothost.json', 'README.md', '.gitignore', 'tests/test_service.py', 'tests/test_customs.py']
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
     for name in files:
         info = zipfile.ZipInfo(name, date_time=(2026, 10, 26, 0, 0, 0))

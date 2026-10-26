@@ -273,6 +273,7 @@ public class ApplicationLoader extends Application {
             DownloadController.getInstance(a);
         }
         BillingController.getInstance().startConnection();
+        org.telegram.messenger.wgram.WGramPlugins.start();
     }
 
     public ApplicationLoader() {

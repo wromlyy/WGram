@@ -56,7 +56,11 @@ jobs:
           WGRAM_TEST_GPU: ${{ inputs.gpu_mode }}
         run: |
           rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
-          sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"
+          for wgram_sdk_attempt in 1 2 3; do
+            if sdkmanager 'emulator' "system-images;android-$WGRAM_TEST_API;google_apis;x86_64"; then break; fi
+            if [ "$wgram_sdk_attempt" = 3 ]; then exit 1; fi
+            rm -rf "$ANDROID_HOME/.temp"
+          done
           sudo chmod a+rw /dev/kvm
           export ANDROID_USER_HOME="$RUNNER_TEMP/wgram-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
@@ -92,6 +96,9 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+          # The offline first-boot Pixel Launcher can ANR over screenshots. WGram is launched explicitly.
+          adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
+          adb shell pm disable-user --user 0 com.android.launcher3 || true
           # The offline Google launcher waits for its disabled search provider and can
           # cover every screenshot with its own ANR dialog. The test launches WGram directly.
           adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true

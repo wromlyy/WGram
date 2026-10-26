@@ -1,6 +1,7 @@
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 
 apply plugin: 'com.android.library'
+apply plugin: 'com.chaquo.python'
 apply plugin: 'org.telegram.build-plugin'
 apply plugin: 'idea'
 
@@ -161,12 +162,13 @@ android {
         buildConfigField "boolean", "WGRAM_FIREBASE_ENABLED", rootProject.ext.wgramFirebaseEnabled.toString()
         buildConfigField "int", "WGRAM_API_ID", Integer.toString(wgramApiId.toInteger())
         buildConfigField "String", "WGRAM_API_HASH", '"' + wgramApiHash + '"'
-        minSdkVersion 23
+        minSdkVersion 24
         targetSdkVersion 36
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         multiDexEnabled true
+        ndk { abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64" }
 
         externalNativeBuild {
             cmake {
@@ -294,3 +296,7 @@ task checkVisibility {
 }
 
 preBuild.dependsOn checkVisibility
+
+chaquopy {
+    defaultConfig { version = "3.11" }
+}

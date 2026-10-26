@@ -96,6 +96,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -108,6 +111,7 @@ jobs:
       - name: Validate WGram
         run: |
           sh wgram/test.sh
+          python3 -m unittest discover -s wgram/tests -p 'test_*.py' -v
           python3 wgram/verify_resources.py
       - name: Compile Android Java sources
         if: inputs.check_java_only
@@ -143,7 +147,12 @@ jobs:
         if: ${{ inputs.run_ui_smoke && !inputs.check_java_only }}
         timeout-minutes: 12
         run: |
-          sdkmanager 'emulator' 'system-images;android-34;google_apis;x86_64'
+          for wgram_sdk_attempt in 1 2 3; do
+            if sdkmanager 'emulator' 'system-images;android-34;google_apis;x86_64'; then break; fi
+            if [ "$wgram_sdk_attempt" = 3 ]; then exit 1; fi
+            # Retry a corrupt SDK download on this ephemeral runner.
+            rm -rf "$ANDROID_HOME/.temp"
+          done
           sudo chmod a+rw /dev/kvm
           export ANDROID_USER_HOME="$RUNNER_TEMP/wgram-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
@@ -177,6 +186,9 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+          # The offline first-boot Pixel Launcher can ANR over screenshots. WGram is launched explicitly.
+          adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
+          adb shell pm disable-user --user 0 com.android.launcher3 || true
           if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 24 ]; then
             timeout 180 adb shell cmd package compile -m speed -f org.wgram.messenger.beta
             timeout 60 adb shell cmd package compile -m speed -f org.wgram.messenger.beta.test

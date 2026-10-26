@@ -551,7 +551,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         titleView.setText(UserObject.getUserName(user) + (WGramConfig.hasLocalBadge(currentAccount, user) ? " ★" : ""));
         final StringBuilder sb = new StringBuilder();
         if (user != null) {
-            sb.append(PhoneFormat.getInstance().format("+" + user.phone));
+            sb.append(WGramConfig.hidePhone(currentAccount) ? "+••• ••• ••••" : PhoneFormat.getInstance().format("+" + user.phone));
         }
         final String username = UserObject.getPublicUsername(user);
         if (username != null) {
@@ -559,7 +559,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         subtitleView.setText(sb);
 
-        versionView.setText("WGram 0.3 · " + getVersionName());
+        versionView.setText("WGram 0.4 · " + getVersionName());
     }
 
 
