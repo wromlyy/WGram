@@ -52,6 +52,11 @@ public final class WGramPluginEditorActivity extends BaseFragment {
         draft = new AtomicFile(new File(new File(ApplicationLoader.getFilesDirFixed(), "wgram_plugin_drafts"),
             id == null ? "new.py" : "edit_" + id + ".py"));
     }
+    static void discardDraft(String id) {
+        if (id == null || !id.matches("[A-Za-z][A-Za-z0-9_-]{1,31}")) return;
+        AtomicFile file = new AtomicFile(new File(new File(ApplicationLoader.getFilesDirFixed(), "wgram_plugin_drafts"), "edit_" + id + ".py"));
+        Utilities.globalQueue.postRunnable(file::delete);
+    }
     @Override public View createView(Context context) {
         actionBar.setTitle(getString(R.string.WGramPluginEditor));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);

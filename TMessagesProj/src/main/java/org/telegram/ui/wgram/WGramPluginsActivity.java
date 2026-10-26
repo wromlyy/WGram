@@ -95,6 +95,7 @@ public final class WGramPluginsActivity extends UniversalFragment {
     private void change(String operation, Object... args) {
         busy = true; refresh();
         WGramPlugins.execute(operation, (json, failure) -> {
+            if (failure == null && "remove".equals(operation) && args.length > 0) WGramPluginEditorActivity.discardDraft(String.valueOf(args[0]));
             if (failure != null) WGramUi.info(this, getString(R.string.WGramPluginFailed) + "\n" + failure);
             reload();
         }, args);

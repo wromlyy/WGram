@@ -20,7 +20,11 @@ public final class WGramEmojiPreviewView extends View {
         setContentDescription(LocaleController.getString(R.string.WGramCustomEmojiPreview));
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
-    public void setEmoji(long documentId) { drawable.set(Math.max(0, documentId), false); invalidate(); }
+    public void setEmoji(long documentId) {
+        if (documentId > 0) drawable.set(documentId, false);
+        else drawable.set((android.graphics.drawable.Drawable) null, false);
+        invalidate();
+    }
     @Override protected void onMeasure(int width, int height) {
         setMeasuredDimension(MeasureSpec.getSize(width), resolveSize(AndroidUtilities.dp(144), height));
     }
@@ -33,5 +37,5 @@ public final class WGramEmojiPreviewView extends View {
     }
     @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); drawable.attach(); }
     @Override protected void onDetachedFromWindow() { drawable.detach(); super.onDetachedFromWindow(); }
-    public void release() { drawable.detach(); drawable.set(0, false); }
+    public void release() { drawable.detach(); drawable.set((android.graphics.drawable.Drawable) null, false); }
 }
