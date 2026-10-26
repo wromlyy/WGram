@@ -223,6 +223,7 @@ def handle_custom_command(sender, text):
         return ('Общий каталог WGram. Всё отправленное на публикацию видно другим после одобрения.\n'
             '/submit Название — поделиться сохранённым профилем\n'
             'Фото с подписью /custom Название — поделиться баннером\n'
+            'Кастомный эмодзи отдельным сообщением — добавить эмодзи\n'
             '/emoji ID Название — добавить эмодзи\n'
             'Ссылка t.me/addemoji/... или t.me/addstickers/... — добавить набор\n'
             '/catalog — общий каталог\n/mine — мои работы\n/remove ID — удалить свою работу')
@@ -303,7 +304,17 @@ def handle_bot_message(message):
     if custom_reply is not None:
         api('sendMessage', {'chat_id': sender, 'text': custom_reply})
         return
-    if text == '/delete':
+    emoji_entities = [entity for entity in message.get('entities', [])
+        if isinstance(entity, dict) and entity.get('type') == 'custom_emoji']
+    if emoji_entities and not text.startswith('/'):
+        try:
+            emoji = uid(emoji_entities[0]['custom_emoji_id'])
+            with GUARD, database() as db:
+                item = create_custom(db, sender, 'emoji', 'Эмодзи ' + str(emoji), {'emoji': emoji})
+            reply = 'Лимит работ достигнут.' if item is None else 'Эмодзи #' + str(item['id']) + ' отправлен на проверку. /mine — мои работы.'
+        except (ValueError, KeyError, TypeError):
+            reply = 'Не удалось прочитать кастомный эмодзи. Попробуй прислать его отдельным сообщением.'
+    elif text == '/delete':
         with GUARD, database() as db:
             db.execute('DELETE FROM profiles WHERE uid=?', (sender,))
             db.execute('DELETE FROM banners WHERE uid=?', (sender,))

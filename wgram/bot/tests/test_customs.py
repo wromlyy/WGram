@@ -112,6 +112,16 @@ class CatalogTests(unittest.TestCase):
         bot.handle_bot_message(self.message(100,text))
         self.assertEqual(len(self.request('/v1/customs?mine=1',token=token)[1]['items']),1)
 
+    def test_custom_emoji_can_be_sent_without_knowing_its_id(self):
+        token=self.connect(100)
+        bot.handle_bot_message(self.message(100,'😀',entities=[{'type':'custom_emoji','offset':0,'length':2,'custom_emoji_id':'9000000000000000000'}]))
+        item=self.request('/v1/customs?mine=1',token=token)[1]['items'][0]
+        self.assertEqual(item['kind'],'emoji')
+        self.assertEqual(item['payload']['emoji'],9000000000000000000)
+        self.assertEqual(item['status'],'pending')
+        bot.handle_bot_message(self.message(100,'😀',entities=[{'type':'custom_emoji','custom_emoji_id':'../invalid'}]))
+        self.assertEqual(len(self.request('/v1/customs?mine=1',token=token)[1]['items']),1)
+
     def test_pack_verified_and_no_arbitrary_url_download(self):
         token=self.connect(100)
         self.mock_api.return_value={'title':'Emoji set','sticker_type':'custom_emoji'}
